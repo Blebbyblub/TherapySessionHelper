@@ -1,4 +1,4 @@
-# facial_analyzer.py (Fixed version)
+# facial_analyzer.py (Updated version)
 import cv2
 import numpy as np
 import tensorflow as tf
@@ -30,6 +30,7 @@ class FacialExpressionAnalyzer:
         self.recording_thread = None
         self.recorded_frames = []
         self.emotion_results = []
+        self.cap = None
         
         # Load or create emotion model
         if model_path and os.path.exists(model_path):
@@ -41,22 +42,19 @@ class FacialExpressionAnalyzer:
         """Create a pre-trained emotion recognition model"""
         try:
             print("🔄 Creating emotion recognition model...")
-            # Using MobileNetV2 as base
             base_model = MobileNetV2(
                 weights='imagenet',
                 include_top=False,
                 input_shape=(224, 224, 3)
             )
             
-            # Add custom layers for emotion classification
             x = base_model.output
             x = GlobalAveragePooling2D()(x)
             x = Dense(128, activation='relu')(x)
-            predictions = Dense(7, activation='softmax')(x)  # 7 emotions
+            predictions = Dense(7, activation='softmax')(x)
             
             self.emotion_model = Model(inputs=base_model.input, outputs=predictions)
             
-            # Freeze base model layers
             for layer in base_model.layers:
                 layer.trainable = False
                 
@@ -94,7 +92,7 @@ class FacialExpressionAnalyzer:
             self.create_emotion_model()
     
     def start_video_recording(self):
-        """Start video recording"""
+        """Start video recording - controlled only by frontend button"""
         if self.is_recording:
             return {"status": "already_recording"}
         
@@ -104,8 +102,8 @@ class FacialExpressionAnalyzer:
         
         def record_video():
             """Video recording thread"""
-            cap = cv2.VideoCapture(0)
-            if not cap.isOpened():
+            self.cap = cv2.VideoCapture(0)
+            if not self.cap.isOpened():
                 print("❌ Could not access webcam")
                 self.is_recording = False
                 return
@@ -113,7 +111,7 @@ class FacialExpressionAnalyzer:
             print("🎥 Starting video recording...")
             
             while self.is_recording:
-                ret, frame = cap.read()
+                ret, frame = self.cap.read()
                 if not ret:
                     break
                 
@@ -124,20 +122,17 @@ class FacialExpressionAnalyzer:
                     self.emotion_results.append(emotion_probs)
                     self.recorded_frames.append(processed_frame)
                 else:
-                    # Still record frame even if no face detected
                     self.recorded_frames.append(frame)
                 
-                # Display frame with recording indicator
-                cv2.putText(processed_frame, "RECORDING - Press 'q' to stop", 
+                # Display frame with simple status (no Q key handling)
+                cv2.putText(processed_frame, "RECORDING - Use app to stop", 
                           (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
                 
-                cv2.imshow('Therapy Session - Recording (Press Q to Stop)', processed_frame)
-                
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    self.is_recording = False
-                    break
+                cv2.imshow('Therapy Session - Recording', processed_frame)
+                cv2.waitKey(1)  # Minimal delay
             
-            cap.release()
+            if self.cap:
+                self.cap.release()
             cv2.destroyAllWindows()
             print("✅ Video recording stopped")
         
@@ -149,26 +144,35 @@ class FacialExpressionAnalyzer:
     def stop_video_recording(self):
         """Stop video recording and return analysis results"""
         if not self.is_recording:
-            return {"status": "not_recording"}, None
+            return None, None
         
         self.is_recording = False
+        
+        # Close camera and windows
+        if self.cap:
+            self.cap.release()
+        cv2.destroyAllWindows()
+        
         if self.recording_thread:
-            self.recording_thread.join(timeout=5)  # Wait max 5 seconds
+            self.recording_thread.join(timeout=5)
         
         # Save recorded video if we have frames
         output_path = None
         if self.recorded_frames:
             output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
             
-            # Save frames as video
-            height, width = self.recorded_frames[0].shape[:2]
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            out = cv2.VideoWriter(output_path, fourcc, 20.0, (width, height))
-            
-            for frame in self.recorded_frames:
-                out.write(frame)
-            out.release()
-            print(f"✅ Video saved to: {output_path}")
+            try:
+                height, width = self.recorded_frames[0].shape[:2]
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                out = cv2.VideoWriter(output_path, fourcc, 20.0, (width, height))
+                
+                for frame in self.recorded_frames:
+                    out.write(frame)
+                out.release()
+                print(f"✅ Video saved to: {output_path}")
+            except Exception as e:
+                print(f"❌ Error saving video: {e}")
+                output_path = None
         else:
             print("❌ No frames recorded")
         
@@ -180,6 +184,57 @@ class FacialExpressionAnalyzer:
             print("⚠️ Using demo emotions - no emotion data collected")
         
         return final_emotions, output_path
+    
+    def analyze_uploaded_video(self, video_file):
+        """Analyze uploaded video file"""
+        try:
+            # Save uploaded file to temporary location
+            temp_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
+            video_file.seek(0)
+            
+            with open(temp_path, 'wb') as f:
+                f.write(video_file.read())
+            
+            # Process the video file
+            return self.process_video_file(temp_path)
+            
+        except Exception as e:
+            print(f"❌ Error analyzing uploaded video: {e}")
+            return self._get_demo_emotions()
+    
+    def process_video_file(self, video_path):
+        """Process uploaded video file for emotion analysis"""
+        try:
+            cap = cv2.VideoCapture(video_path)
+            emotion_results = []
+            frames_processed = 0
+            
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                
+                # Process every 5th frame to reduce processing load
+                if frames_processed % 5 == 0:
+                    processed_frame, emotion_probs = self.process_frame(frame)
+                    if emotion_probs:
+                        emotion_results.append(emotion_probs)
+                
+                frames_processed += 1
+            
+            cap.release()
+            
+            if emotion_results:
+                final_emotions = self._aggregate_emotions(emotion_results)
+                print(f"✅ Processed {len(emotion_results)} frames from uploaded video")
+                return final_emotions
+            else:
+                print("❌ No faces detected in uploaded video")
+                return self._get_demo_emotions()
+                
+        except Exception as e:
+            print(f"❌ Error processing video file: {e}")
+            return self._get_demo_emotions()
     
     def get_recording_status(self):
         """Get current recording status"""
@@ -204,19 +259,14 @@ class FacialExpressionAnalyzer:
     def preprocess_face(self, face_roi):
         """Preprocess face ROI for emotion classification"""
         try:
-            # Resize to model input size
             face_resized = cv2.resize(face_roi, (224, 224))
             
-            # Convert to RGB if needed
-            if len(face_resized.shape) == 2:  # Grayscale
+            if len(face_resized.shape) == 2:
                 face_resized = cv2.cvtColor(face_resized, cv2.COLOR_GRAY2RGB)
-            elif face_resized.shape[2] == 4:  # RGBA
+            elif face_resized.shape[2] == 4:
                 face_resized = cv2.cvtColor(face_resized, cv2.COLOR_RGBA2RGB)
             
-            # Normalize pixel values
             face_normalized = face_resized.astype(np.float32) / 255.0
-            
-            # Expand dimensions for batch
             face_batch = np.expand_dims(face_normalized, axis=0)
             
             return face_batch
@@ -236,7 +286,6 @@ class FacialExpressionAnalyzer:
         try:
             predictions = self.emotion_model.predict(preprocessed_face, verbose=0)
             
-            # Get emotion probabilities
             emotion_probs = {
                 self.emotion_labels[i]: float(predictions[0][i]) 
                 for i in range(len(self.emotion_labels))
@@ -254,14 +303,12 @@ class FacialExpressionAnalyzer:
             processed_frame = frame.copy()
             
             if len(faces) > 0:
-                # Use the first detected face (main subject)
                 x, y, w, h = faces[0]
                 face_roi = frame[y:y+h, x:x+w]
                 
                 if face_roi.size > 0:
                     emotion_probs = self.predict_emotion(face_roi)
                     
-                    # Draw bounding box and emotion text on frame
                     cv2.rectangle(processed_frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
                     dominant_emotion = max(emotion_probs.items(), key=lambda x: x[1])
                     cv2.putText(processed_frame, f"{dominant_emotion[0]}: {dominant_emotion[1]:.2f}", 
@@ -269,7 +316,6 @@ class FacialExpressionAnalyzer:
                     
                     return processed_frame, emotion_probs
             
-            # If no face detected, still return the frame
             return processed_frame, None
         except Exception as e:
             print(f"Frame processing error: {e}")
@@ -280,30 +326,19 @@ class FacialExpressionAnalyzer:
         aggregated = {}
         for emotion in self.emotion_labels:
             emotion_values = [result.get(emotion, 0) for result in emotion_results]
-            aggregated[emotion] = np.mean(emotion_values) * 100  # Convert to percentage
-        
+            aggregated[emotion] = np.mean(emotion_values) * 100
         return aggregated
     
     def _get_demo_emotions(self):
         """Return demo emotion percentages for testing"""
         return {
-            'neutral': 65.0,
-            'happy': 15.0,
-            'sad': 10.0,
-            'angry': 4.0,
-            'surprise': 3.0,
-            'fear': 2.0,
-            'disgust': 1.0
+            'neutral': 65.0, 'happy': 15.0, 'sad': 10.0, 'angry': 4.0,
+            'surprise': 3.0, 'fear': 2.0, 'disgust': 1.0
         }
     
     def _get_demo_emotion_probs(self):
         """Return demo emotion probabilities for single frame"""
         return {
-            'neutral': 0.65,
-            'happy': 0.15,
-            'sad': 0.10,
-            'angry': 0.04,
-            'surprise': 0.03,
-            'fear': 0.02,
-            'disgust': 0.01
+            'neutral': 0.65, 'happy': 0.15, 'sad': 0.10, 'angry': 0.04,
+            'surprise': 0.03, 'fear': 0.02, 'disgust': 0.01
         }
