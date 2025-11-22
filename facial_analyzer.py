@@ -1,4 +1,4 @@
-# facial_analyzer.py
+# facial_analyzer.py (Fixed version)
 import cv2
 import numpy as np
 import tensorflow as tf
@@ -9,6 +9,8 @@ from tensorflow.keras.models import Model
 from collections import deque
 import os
 import tempfile
+import threading
+import time
 
 class FacialExpressionAnalyzer:
     def __init__(self, model_path=None):
@@ -24,6 +26,10 @@ class FacialExpressionAnalyzer:
         self.emotion_model = None
         self.emotion_labels = ['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral']
         self.frame_buffer = deque(maxlen=16)
+        self.is_recording = False
+        self.recording_thread = None
+        self.recorded_frames = []
+        self.emotion_results = []
         
         # Load or create emotion model
         if model_path and os.path.exists(model_path):
@@ -87,6 +93,98 @@ class FacialExpressionAnalyzer:
             print(f"❌ Error loading emotion model: {e}")
             self.create_emotion_model()
     
+    def start_video_recording(self):
+        """Start video recording"""
+        if self.is_recording:
+            return {"status": "already_recording"}
+        
+        self.is_recording = True
+        self.recorded_frames = []
+        self.emotion_results = []
+        
+        def record_video():
+            """Video recording thread"""
+            cap = cv2.VideoCapture(0)
+            if not cap.isOpened():
+                print("❌ Could not access webcam")
+                self.is_recording = False
+                return
+            
+            print("🎥 Starting video recording...")
+            
+            while self.is_recording:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                
+                # Process frame for emotion analysis
+                processed_frame, emotion_probs = self.process_frame(frame)
+                
+                if emotion_probs:
+                    self.emotion_results.append(emotion_probs)
+                    self.recorded_frames.append(processed_frame)
+                else:
+                    # Still record frame even if no face detected
+                    self.recorded_frames.append(frame)
+                
+                # Display frame with recording indicator
+                cv2.putText(processed_frame, "RECORDING - Press 'q' to stop", 
+                          (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+                
+                cv2.imshow('Therapy Session - Recording (Press Q to Stop)', processed_frame)
+                
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    self.is_recording = False
+                    break
+            
+            cap.release()
+            cv2.destroyAllWindows()
+            print("✅ Video recording stopped")
+        
+        self.recording_thread = threading.Thread(target=record_video)
+        self.recording_thread.start()
+        
+        return {"status": "recording_started"}
+    
+    def stop_video_recording(self):
+        """Stop video recording and return analysis results"""
+        if not self.is_recording:
+            return {"status": "not_recording"}, None
+        
+        self.is_recording = False
+        if self.recording_thread:
+            self.recording_thread.join(timeout=5)  # Wait max 5 seconds
+        
+        # Save recorded video if we have frames
+        output_path = None
+        if self.recorded_frames:
+            output_path = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4').name
+            
+            # Save frames as video
+            height, width = self.recorded_frames[0].shape[:2]
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            out = cv2.VideoWriter(output_path, fourcc, 20.0, (width, height))
+            
+            for frame in self.recorded_frames:
+                out.write(frame)
+            out.release()
+            print(f"✅ Video saved to: {output_path}")
+        else:
+            print("❌ No frames recorded")
+        
+        # Analyze emotions
+        if self.emotion_results:
+            final_emotions = self._aggregate_emotions(self.emotion_results)
+        else:
+            final_emotions = self._get_demo_emotions()
+            print("⚠️ Using demo emotions - no emotion data collected")
+        
+        return final_emotions, output_path
+    
+    def get_recording_status(self):
+        """Get current recording status"""
+        return self.is_recording
+    
     def detect_faces(self, frame):
         """Detect faces in frame using OpenCV Haar Cascades"""
         try:
@@ -129,11 +227,11 @@ class FacialExpressionAnalyzer:
     def predict_emotion(self, face_roi):
         """Predict emotion from face ROI"""
         if self.emotion_model is None:
-            return self._get_demo_emotions()
+            return self._get_demo_emotion_probs()
         
         preprocessed_face = self.preprocess_face(face_roi)
         if preprocessed_face is None:
-            return self._get_demo_emotions()
+            return self._get_demo_emotion_probs()
         
         try:
             predictions = self.emotion_model.predict(preprocessed_face, verbose=0)
@@ -147,12 +245,13 @@ class FacialExpressionAnalyzer:
             return emotion_probs
         except Exception as e:
             print(f"Prediction error: {e}")
-            return self._get_demo_emotions()
+            return self._get_demo_emotion_probs()
     
     def process_frame(self, frame):
         """Process a single frame and return emotion analysis"""
         try:
             faces = self.detect_faces(frame)
+            processed_frame = frame.copy()
             
             if len(faces) > 0:
                 # Use the first detected face (main subject)
@@ -163,130 +262,18 @@ class FacialExpressionAnalyzer:
                     emotion_probs = self.predict_emotion(face_roi)
                     
                     # Draw bounding box and emotion text on frame
-                    cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
+                    cv2.rectangle(processed_frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
                     dominant_emotion = max(emotion_probs.items(), key=lambda x: x[1])
-                    cv2.putText(frame, f"{dominant_emotion[0]}: {dominant_emotion[1]:.2f}", 
+                    cv2.putText(processed_frame, f"{dominant_emotion[0]}: {dominant_emotion[1]:.2f}", 
                               (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                     
-                    return frame, emotion_probs
+                    return processed_frame, emotion_probs
             
-            return frame, None
+            # If no face detected, still return the frame
+            return processed_frame, None
         except Exception as e:
             print(f"Frame processing error: {e}")
             return frame, None
-    
-    def record_video_response(self, duration_seconds=30, output_path="response_video.mp4"):
-        """Record a video response with real-time emotion analysis"""
-        try:
-            cap = cv2.VideoCapture(0)
-            if not cap.isOpened():
-                print("❌ Could not access webcam")
-                return self._get_demo_emotions(), None
-            
-            # Get video properties
-            fps = 20
-            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            
-            # Initialize video writer
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-            
-            emotion_results = []
-            start_time = cv2.getTickCount()
-            
-            print("🎥 Recording video response...")
-            
-            while True:
-                ret, frame = cap.read()
-                if not ret:
-                    break
-                
-                # Calculate elapsed time
-                elapsed_time = (cv2.getTickCount() - start_time) / cv2.getTickFrequency()
-                if elapsed_time > duration_seconds:
-                    break
-                
-                # Process frame for emotion analysis
-                processed_frame, emotion_probs = self.process_frame(frame)
-                
-                if emotion_probs:
-                    emotion_results.append(emotion_probs)
-                
-                # Write frame to video
-                out.write(processed_frame)
-                
-                # Display frame
-                cv2.imshow('Therapy Session - Recording', processed_frame)
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    break
-            
-            cap.release()
-            out.release()
-            cv2.destroyAllWindows()
-            
-            # Analyze the recorded video
-            if emotion_results:
-                final_emotions = self._aggregate_emotions(emotion_results)
-            else:
-                final_emotions = self._get_demo_emotions()
-            
-            return final_emotions, output_path
-            
-        except Exception as e:
-            print(f"Video recording error: {e}")
-            return self._get_demo_emotions(), None
-    
-    def analyze_video(self, video_path, frames_per_second=5):
-        """Analyze facial expressions in video"""
-        try:
-            cap = cv2.VideoCapture(video_path)
-            if not cap.isOpened():
-                raise ValueError("Could not open video file")
-            
-            # Video properties
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            if fps == 0:
-                fps = 30  # Default assumption
-            frame_interval = max(1, int(fps / frames_per_second))
-            
-            emotion_results = []
-            frame_count = 0
-            
-            while True:
-                ret, frame = cap.read()
-                if not ret:
-                    break
-                
-                # Process every nth frame
-                if frame_count % frame_interval == 0:
-                    faces = self.detect_faces(frame)
-                    
-                    if len(faces) > 0:
-                        # Use the first detected face (main subject)
-                        x, y, w, h = faces[0]
-                        face_roi = frame[y:y+h, x:x+w]
-                        
-                        if face_roi.size > 0:
-                            emotion_probs = self.predict_emotion(face_roi)
-                            if emotion_probs:
-                                emotion_results.append(emotion_probs)
-                
-                frame_count += 1
-            
-            cap.release()
-            
-            if not emotion_results:
-                return self._get_demo_emotions()
-            
-            # Aggregate results
-            final_emotions = self._aggregate_emotions(emotion_results)
-            
-            return final_emotions
-            
-        except Exception as e:
-            print(f"Video analysis error: {e}")
-            return self._get_demo_emotions()
     
     def _aggregate_emotions(self, emotion_results):
         """Aggregate emotion results with smoothing"""
@@ -309,31 +296,14 @@ class FacialExpressionAnalyzer:
             'disgust': 1.0
         }
     
-    def get_emotion_insights(self, emotion_results):
-        """Generate insights based on emotion analysis"""
-        sadness_score = emotion_results.get('sad', 0)
-        neutral_score = emotion_results.get('neutral', 0)
-        happy_score = emotion_results.get('happy', 0)
-        negative_emotions = emotion_results.get('angry', 0) + emotion_results.get('fear', 0) + emotion_results.get('disgust', 0)
-        
-        insights = []
-        
-        if sadness_score > 25:
-            insights.append("Elevated sadness detected in facial expressions")
-        elif sadness_score > 15:
-            insights.append("Moderate sadness levels observed")
-        
-        if neutral_score > 70:
-            insights.append("Predominantly neutral emotional expressions")
-        
-        if negative_emotions > 20:
-            insights.append("Noticeable negative emotional expressions")
-        elif negative_emotions > 10:
-            insights.append("Some negative emotional expressions present")
-        
-        if happy_score > 30:
-            insights.append("Positive emotional expressions detected")
-        elif happy_score > 15:
-            insights.append("Some positive emotional expressions observed")
-        
-        return insights if insights else ["Emotional expressions within typical range"]
+    def _get_demo_emotion_probs(self):
+        """Return demo emotion probabilities for single frame"""
+        return {
+            'neutral': 0.65,
+            'happy': 0.15,
+            'sad': 0.10,
+            'angry': 0.04,
+            'surprise': 0.03,
+            'fear': 0.02,
+            'disgust': 0.01
+        }
