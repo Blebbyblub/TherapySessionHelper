@@ -1,175 +1,204 @@
-Therapy Session Helper – Multi-Modal Analysis
+# Therapy Session Helper – Multi-Modal Analysis
 
-A comprehensive emotional analysis tool that uses video, audio, and text to provide insights during therapy sessions.
+A comprehensive emotional analysis tool that uses **video**, **audio**, and **text** to provide insights during therapy sessions.
 
-⭐ Features
-🎥 Video Analysis
+---
+
+## ⭐ Features
+
+### 🎥 Video Analysis
 
 Real-time facial expression recognition.
 
-🎵 Audio Analysis
+### 🎵 Audio Analysis
 
 Voice pattern and speech content analysis.
 
-📝 Text Analysis
+### 📝 Text Analysis
 
 Depression severity prediction from written text.
 
-💬 Complete Session
+### 💬 Complete Session
 
 Multi-modal analysis combining all inputs for deeper insights.
 
-🚀 Quick Start
-Prerequisites
+---
 
-Python 3.8+
+## 🚀 Quick Start
 
-Webcam (for video analysis)
+### **Prerequisites**
 
-Microphone (for audio analysis)
+- Python **3.8+**
+- Webcam (for video analysis)
+- Microphone (for audio analysis)
 
-🔧 Installation
+---
 
-1. Clone or download the project.
-2. Create a virtual environment (recommended)
-   python -m venv therapy_env
+## 🔧 Installation
+
+### 1. Clone or download the project.
+
+### 2. Create a virtual environment (recommended)
+
+```bash
+python -m venv therapy_env
 
 # On Windows:
-
 therapy_env\Scripts\activate
 
 # On Mac/Linux:
-
 source therapy_env/bin/activate
+```
 
-3. Install required packages
-   pip install streamlit pandas numpy plotly opencv-python tensorflow pillow librosa googletrans langdetect scikit-learn
+### 3. Install required packages
 
-4. (Optional) Install audio recording support
+```bash
+pip install streamlit pandas numpy plotly opencv-python tensorflow pillow librosa googletrans langdetect scikit-learn
+```
 
-Windows
+### 4. (Optional) Install audio recording support
 
+**Windows**
+
+```bash
 pip install pyaudio
+```
 
-Mac
+**Mac**
 
+```bash
 brew install portaudio
 pip install pyaudio
+```
 
-Linux
+**Linux**
 
+```bash
 sudo apt-get install python3-pyaudio
+```
 
-▶️ Running the Application
+---
+
+## ▶️ Running the Application
 
 Ensure you're in the project directory containing:
 
+```
 app.py
 facial_analyzer.py
 depression_text_predictor.py
 audio_depression_detector.py
+```
 
 Run:
 
+```bash
 streamlit run app.py
+```
 
-Open the displayed URL (usually http://localhost:8501
-).
+Open the displayed URL (usually http://localhost:8501).
 
-📘 Usage Guide
-📝 Text Analysis
+---
 
-Select Text Analysis in the sidebar
+## 📘 Usage Guide
 
-Type/paste your text
+### **📝 Text Analysis**
 
-Click Analyze Text
+1. Select **Text Analysis** in the sidebar
+2. Type/paste your text
+3. Click **Analyze Text**
+4. View depression severity results
 
-View depression severity results
+---
 
-🎥 Video Analysis
+### **🎥 Video Analysis**
 
-Select Video Analysis
+1. Select **Video Analysis**
+2. Choose a therapy question
+3. Click **Start Video Recording**
+4. Speak to the camera
+5. Press **Q** to stop
+6. View facial expression analysis
 
-Choose a therapy question
+---
 
-Click Start Video Recording
+### **🎵 Audio Analysis**
 
-Speak to the camera
+1. Select **Audio Analysis**
+2. Click **Start Recording**
+3. Speak normally
+4. Click **Stop Recording**
+5. View audio-based depression results
 
-Press Q to stop
+---
 
-View facial expression analysis
+### **💬 Complete Session**
 
-🎵 Audio Analysis
+1. Select **Complete Session**
+2. Follow the combined video/audio prompts
+3. Receive multi-modal analysis output
 
-Select Audio Analysis
+---
 
-Click Start Recording
+## 📂 File Structure
 
-Speak normally
-
-Click Stop Recording
-
-View audio-based depression results
-
-💬 Complete Session
-
-Select Complete Session
-
-Follow the combined video/audio prompts
-
-Receive multi-modal analysis output
-
-📂 File Structure
+```
 therapy-app/
-├── app.py # Main application
-├── facial_analyzer.py # Video analysis module
+├── app.py                       # Main application
+├── facial_analyzer.py           # Video analysis module
 ├── depression_text_predictor.py # Text analysis module
 ├── audio_depression_detector.py # Audio analysis module
-└── requirements.txt # Dependencies
+└── requirements.txt             # Dependencies
+```
 
-🤖 Model Files
+---
+
+## 🤖 Model Files
 
 The text analysis component checks for:
 
-depression_model.h5
-
-tokenizer.pkl
-
-label_encoder.pkl
+- `depression_model.h5`
+- `tokenizer.pkl`
+- `label_encoder.pkl`
 
 If they are missing, the system uses demo mode automatically.
 
-🛠 Troubleshooting
-Webcam not working
+---
 
-Ensure no other app is using the camera
+## 🛠 Troubleshooting
 
-Check browser permissions
+### **Webcam not working**
 
-Audio not recording
+- Ensure no other app is using the camera
+- Check browser permissions
 
-Microphone permission required
+### **Audio not recording**
 
-Demo mode will automatically activate if needed
+- Microphone permission required
+- Demo mode will automatically activate if needed
 
-Import errors
+### **Import errors**
 
-Reinstall dependencies
+- Reinstall dependencies
 
+```bash
 pip install --upgrade pip
+```
 
-TensorFlow warnings
+### **TensorFlow warnings**
 
 Normal — they do not affect app functionality.
 
-📌 Support
+---
 
-The application includes robust error handling.
-If any module fails (video/audio/model loading), the app switches to demo mode so you can still use the core features.
+## 📌 Support
 
-⚠️ Disclaimer
+The application includes **robust error handling**.  
+If any module fails (video/audio/model loading), the app switches to **demo mode** so you can still use the core features.
 
-This tool assists mental health professionals and is not a substitute for medical diagnosis or treatment.
+---
+
+## ⚠️ Disclaimer
+
+This tool assists mental health professionals and **is not a substitute for medical diagnosis or treatment**.  
 Always consult qualified healthcare providers for medical concerns.
