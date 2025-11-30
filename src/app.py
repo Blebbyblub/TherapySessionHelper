@@ -1,4 +1,4 @@
-# app.py (COMPLETELY FIXED VERSION)
+# app.py (COMPLETELY FIXED VERSION WITH COMPLETE SESSION AND UPLOAD)
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -98,6 +98,15 @@ def initialize_session_state():
         'audio_upload_analyzing': False,
         'audio_upload_processed': False,
         'uploaded_audio_file': None,
+        
+        # Complete session states
+        'complete_session_active': False,
+        'complete_session_results': None,
+        'complete_session_analyzing': False,
+        'complete_session_mode': 'record',  # 'record' or 'upload'
+        'complete_session_video_file': None,
+        'complete_session_audio_file': None,
+        'complete_session_upload_processed': False,
         
         # General states
         'last_action': None,
@@ -271,25 +280,9 @@ def handle_video_recording_states(facial_analyzer):
                         'video_path': video_path
                     }
                 else:
-                    # Fallback to demo results
-                    demo_emotion_results = {
-                        'neutral': 45.0, 'happy': 25.0, 'sad': 15.0,
-                        'angry': 5.0, 'surprise': 5.0, 'fear': 3.0, 'disgust': 2.0
-                    }
-                    st.session_state.video_results = {
-                        'emotions': demo_emotion_results,
-                        'video_path': None
-                    }
+                    st.error("❌ No emotion data collected from video")
             except Exception as e:
                 st.error(f"❌ Error during video analysis: {e}")
-                demo_emotion_results = {
-                    'neutral': 45.0, 'happy': 25.0, 'sad': 15.0,
-                    'angry': 5.0, 'surprise': 5.0, 'fear': 3.0, 'disgust': 2.0
-                }
-                st.session_state.video_results = {
-                    'emotions': demo_emotion_results,
-                    'video_path': None
-                }
             finally:
                 st.session_state.video_analyzing = False
                 st.rerun()
@@ -354,15 +347,6 @@ def handle_video_upload(facial_analyzer):
                 }
             except Exception as e:
                 st.error(f"❌ Error analyzing video: {e}")
-                # Fallback to demo
-                demo_emotion_results = {
-                    'neutral': 45.0, 'happy': 25.0, 'sad': 15.0,
-                    'angry': 5.0, 'surprise': 5.0, 'fear': 3.0, 'disgust': 2.0
-                }
-                st.session_state.video_results = {
-                    'emotions': demo_emotion_results,
-                    'video_path': None
-                }
             finally:
                 st.session_state.video_upload_analyzing = False
                 st.rerun()
@@ -537,7 +521,6 @@ def handle_audio_recording_states(audio_detector):
                 st.session_state.audio_results = audio_detector.stop_recording()
             except Exception as e:
                 st.error(f"❌ Error during audio analysis: {e}")
-                st.session_state.audio_results = {'error': str(e), 'demo_mode': True}
             finally:
                 st.session_state.audio_analyzing = False
                 st.rerun()
@@ -580,7 +563,6 @@ def handle_audio_upload(audio_detector):
                 st.session_state.audio_results = audio_detector.analyze_uploaded_audio(st.session_state.uploaded_audio_file)
             except Exception as e:
                 st.error(f"❌ Error analyzing audio: {e}")
-                st.session_state.audio_results = {'error': str(e), 'demo_mode': True}
             finally:
                 st.session_state.audio_upload_analyzing = False
                 st.rerun()
@@ -673,8 +655,7 @@ def text_analysis(predictor):
     st.header("📝 Text Analysis")
     
     if predictor is None:
-        st.warning("⚠️ Text analysis model not available - showing demo mode")
-        demo_text_analysis()
+        st.error("❌ Text analysis model not available")
         return
     
     text_input = st.text_area(
@@ -699,35 +680,514 @@ def text_analysis(predictor):
                 display_text_results(result)
             except Exception as e:
                 st.error(f"❌ Analysis error: {e}")
-                demo_text_analysis_with_input(text_input)
 
 def complete_session(facial_analyzer, audio_detector):
-    """Complete multi-modal analysis session"""
+    """Complete multi-modal analysis session - Both recording and video upload options"""
     st.header("💬 Complete Therapy Session")
-    
-    st.info("""
-    **Complete Multi-Modal Analysis:**
-    - **Video**: Facial expression analysis
-    - **Audio**: Voice and speech content analysis  
-    - **Combined**: Comprehensive emotional assessment
-    """)
     
     if not facial_analyzer or not audio_detector:
         st.error("❌ Both video and audio analysis required for complete session")
         return
     
-    st.warning("🚧 Complete session implementation in progress...")
-    st.info("For now, please use the individual Video and Audio analysis options above.")
+    st.info("""
+    **Complete Multi-Modal Analysis:**
+    - **🎥 Video Analysis**: Facial expression analysis
+    - **🎵 Audio Analysis**: Voice and speech content analysis  
+    - **🧠 Combined**: Comprehensive emotional assessment
+    
+    **Choose your method:**
+    - **🎥 Record Live**: Record video with audio simultaneously
+    - **📁 Upload Video**: Upload existing video file for analysis
+    """)
+    
+    # Language selection for complete session
+    st.subheader("🌐 Language Selection")
+    language_choice = st.radio(
+        "Select speech language:",
+        ["English", "Indonesian"],
+        horizontal=True,
+        key="complete_session_language"
+    )
+    
+    # Set the selected language in the audio detector
+    audio_detector.set_language(language_choice.lower())
+    
+    # Session mode selection
+    st.subheader("🎯 Session Mode")
+    session_mode = st.radio(
+        "Select session mode:",
+        ["Record Live Session", "Upload Video File"],
+        horizontal=True,
+        key="session_mode"
+    )
+    
+    # Store session mode in state
+    st.session_state.complete_session_mode = 'record' if session_mode == "Record Live Session" else 'upload'
+    
+    if st.session_state.complete_session_mode == 'record':
+        handle_live_complete_session(facial_analyzer, audio_detector, language_choice)
+    else:
+        handle_upload_complete_session(facial_analyzer, audio_detector, language_choice)
+    
+    # Display results if available
+    if st.session_state.complete_session_results and not st.session_state.complete_session_analyzing:
+        display_complete_session_results()
+
+def handle_live_complete_session(facial_analyzer, audio_detector, language_choice):
+    """Handle live recording for complete session"""
+    st.subheader("🎥🎙️ Live Recording Session")
+    
+    st.markdown("""
+    **Live Recording Instructions:**
+    1. Click **Start Complete Session** to begin recording
+    2. A video window will open - speak naturally about your feelings
+    3. Both video and audio will be recorded simultaneously
+    4. Click **Stop Complete Session** when finished
+    5. Get comprehensive analysis from both modalities
+    """)
+    
+    # Complete session controls
+    st.subheader("🎯 Session Controls")
+    
+    if not st.session_state.complete_session_active and not st.session_state.complete_session_analyzing:
+        if st.button("🚀 Start Complete Session", type="primary", use_container_width=True):
+            # Start both video and audio recording
+            try:
+                # Start video recording
+                video_result = facial_analyzer.start_video_recording()
+                # Start audio recording
+                audio_result = audio_detector.start_recording()
+                
+                if (isinstance(video_result, dict) and video_result.get('status') == 'recording_started' and
+                    "started" in audio_result):
+                    st.session_state.complete_session_active = True
+                    st.session_state.recording_start_time = time.time()
+                    st.session_state.last_action = "start_complete_session"
+                    st.rerun()
+                else:
+                    st.error("❌ Could not start complete session")
+            except Exception as e:
+                st.error(f"❌ Error starting complete session: {e}")
+    
+    elif st.session_state.complete_session_active and not st.session_state.complete_session_analyzing:
+        if st.button("⏹️ Stop Complete Session", type="secondary", use_container_width=True):
+            st.session_state.complete_session_active = False
+            st.session_state.complete_session_analyzing = True
+            st.session_state.last_action = "stop_complete_session"
+            st.rerun()
+    
+    # Handle analysis after stopping complete session
+    if st.session_state.complete_session_analyzing and st.session_state.complete_session_mode == 'record':
+        with st.spinner("🔄 Analyzing complete session data... This may take a moment."):
+            try:
+                # Stop both recordings and get results
+                video_emotions, video_path = facial_analyzer.stop_video_recording()
+                audio_results = audio_detector.stop_recording()
+                
+                # Combine results
+                combined_results = {
+                    'video_emotions': video_emotions,
+                    'audio_results': audio_results,
+                    'combined_score': calculate_combined_score(video_emotions, audio_results),
+                    'timestamp': datetime.now().isoformat(),
+                    'language': language_choice.lower(),
+                    'mode': 'live'
+                }
+                
+                st.session_state.complete_session_results = combined_results
+                st.session_state.complete_session_analyzing = False
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"❌ Error during complete session analysis: {e}")
+                st.session_state.complete_session_analyzing = False
+                st.rerun()
+    
+    # Display current status
+    display_complete_session_status()
+    
+    # Display recording timer if active
+    if st.session_state.complete_session_active and st.session_state.recording_start_time:
+        display_complete_session_timer()
+
+def handle_upload_complete_session(facial_analyzer, audio_detector, language_choice):
+    """Handle video upload for complete session - extracts both video and audio from single file"""
+    st.subheader("📁 Upload Video for Complete Analysis")
+    
+    st.markdown("""
+    **Video Upload Instructions:**
+    - Upload a video file containing both visual and audio content
+    - We'll extract facial expressions from video frames
+    - We'll extract and analyze the audio track from the video
+    - Get comprehensive analysis from both modalities
+    """)
+    
+    uploaded_video = st.file_uploader(
+        "Upload video file for complete analysis",
+        type=['mp4', 'avi', 'mov', 'mkv'],
+        help="Upload a video file with both visual and audio content",
+        key="complete_session_video"
+    )
+    
+    # Store uploaded file in session state
+    if uploaded_video and uploaded_video != st.session_state.get('complete_session_video_file'):
+        st.session_state.complete_session_video_file = uploaded_video
+        st.session_state.complete_session_upload_processed = False
+    
+    # Show analyze button when video is uploaded
+    if (st.session_state.complete_session_video_file and 
+        not st.session_state.complete_session_analyzing and
+        not st.session_state.complete_session_upload_processed):
+        
+        if st.button("🔍 Run Complete Analysis", type="primary", use_container_width=True):
+            st.session_state.complete_session_analyzing = True
+            st.session_state.complete_session_upload_processed = False
+            st.rerun()
+    
+    # Handle complete session analysis for upload
+    if (st.session_state.complete_session_analyzing and 
+        st.session_state.complete_session_mode == 'upload' and
+        st.session_state.complete_session_video_file and
+        not st.session_state.complete_session_upload_processed):
+        
+        # Mark as processing immediately to prevent re-triggering
+        st.session_state.complete_session_upload_processed = True
+        
+        with st.spinner("🔄 Running complete multi-modal analysis..."):
+            try:
+                # Save the uploaded video to a temporary file
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_video:
+                    temp_video.write(st.session_state.complete_session_video_file.read())
+                    video_path = temp_video.name
+                
+                # Step 1: Analyze video for facial expressions
+                st.info("🎥 Analyzing facial expressions...")
+                video_emotions = facial_analyzer.process_video_file(video_path)
+                
+                # Step 2: Extract and analyze audio from the video
+                st.info("🎵 Extracting and analyzing audio...")
+                audio_results = extract_and_analyze_audio_from_video(audio_detector, video_path, language_choice.lower())
+                
+                # Step 3: Combine results
+                combined_results = {
+                    'video_emotions': video_emotions,
+                    'audio_results': audio_results,
+                    'combined_score': calculate_combined_score(video_emotions, audio_results),
+                    'timestamp': datetime.now().isoformat(),
+                    'language': language_choice.lower(),
+                    'mode': 'video_upload',
+                    'filename': st.session_state.complete_session_video_file.name
+                }
+                
+                st.session_state.complete_session_results = combined_results
+                
+                # Clean up temporary file
+                try:
+                    os.unlink(video_path)
+                except:
+                    pass
+                
+            except Exception as e:
+                st.error(f"❌ Error during complete session analysis: {e}")
+            finally:
+                st.session_state.complete_session_analyzing = False
+                st.rerun()
+    
+    # Display current status for upload mode
+    display_complete_session_status()
+
+def extract_and_analyze_audio_from_video(audio_detector, video_path, language):
+    """Extract audio from video and analyze it"""
+    try:
+        # Create temporary audio file
+        temp_audio_path = tempfile.NamedTemporaryFile(delete=False, suffix='.wav').name
+        
+        # Extract audio from video using pydub
+        from pydub import AudioSegment
+        
+        # Load video and extract audio
+        video = AudioSegment.from_file(video_path, format="mp4")
+        
+        # Export as WAV for analysis
+        video.export(temp_audio_path, format="wav")
+        
+        # Analyze the extracted audio
+        audio_results = audio_detector.analyze_audio(temp_audio_path)
+        
+        # Clean up temporary audio file
+        try:
+            os.unlink(temp_audio_path)
+        except:
+            pass
+        
+        return audio_results
+        
+    except Exception as e:
+        st.error(f"❌ Error extracting audio from video: {e}")
+        # Return fallback audio results
+        return {
+            'phq_score': 10,
+            'acoustic_score': 10,
+            'semantic_score': 10,
+            'depression_percentage': 37.0,
+            'transcript': 'Audio extraction failed',
+            'acoustic_insights': ['Could not analyze audio features'],
+            'semantic_insights': ['Could not analyze speech content']
+        }
+
+def calculate_combined_score(video_emotions, audio_results):
+    """Calculate combined emotional score from video and audio analysis"""
+    try:
+        # Video component: focus on sadness and negative emotions
+        video_score = 0
+        if video_emotions:
+            sadness = video_emotions.get('sad', 0)
+            fear = video_emotions.get('fear', 0)
+            angry = video_emotions.get('angry', 0)
+            
+            # Convert emotion percentages to score (0-27 scale)
+            video_score = (sadness * 0.15 + fear * 0.1 + angry * 0.05) * 0.27
+        
+        # Audio component: use PHQ-like score
+        audio_score = audio_results.get('phq_score', 0) if audio_results else 0
+        
+        # Combine with weights (adjust as needed)
+        combined = (video_score * 0.4) + (audio_score * 0.6)
+        return min(27, combined)
+        
+    except Exception as e:
+        st.error(f"Error calculating combined score: {e}")
+        return 0
+
+def display_complete_session_status():
+    """Display current complete session status"""
+    st.markdown("---")
+    
+    if st.session_state.complete_session_analyzing:
+        st.warning("🔄 **Analyzing Complete Session**")
+        if st.session_state.complete_session_mode == 'record':
+            st.info("Processing live recording data...")
+        else:
+            st.info("Processing uploaded video file...")
+    elif st.session_state.complete_session_active:
+        st.error("🔴 **Complete Session Active**")
+        st.info("Both video and audio recording are in progress. Speak naturally about your feelings.")
+    elif st.session_state.complete_session_video_file and not st.session_state.complete_session_results:
+        st.success(f"✅ **Ready to Analyze**: {st.session_state.complete_session_video_file.name}")
+    elif st.session_state.complete_session_results:
+        st.success("✅ **Analysis Complete**")
+    else:
+        mode = "Live Recording" if st.session_state.complete_session_mode == 'record' else "Video Upload"
+        st.info(f"🎯 **Ready for {mode}**")
+
+def display_complete_session_timer():
+    """Display complete session recording timer"""
+    st.markdown("---")
+    st.subheader("🎥🎙️ Complete Session Recording...")
+    
+    recording_time = time.time() - st.session_state.recording_start_time
+    mins, secs = divmod(int(recording_time), 60)
+    st.metric("Session Duration", f"{mins:02d}:{secs:02d}")
+    
+    # Show recording tips
+    st.info("""
+    💡 **Complete Session Tips:**
+    - Speak naturally about your feelings
+    - Maintain eye contact with the camera
+    - Express emotions genuinely
+    - Continue for 1-3 minutes for best results
+    - Describe both thoughts and feelings
+    """)
+
+def display_complete_session_results():
+    """Display complete session analysis results"""
+    st.markdown("---")
+    st.header("📊 Complete Session Analysis")
+    
+    results = st.session_state.complete_session_results
+    
+    # Show mode information
+    if results.get('mode') == 'upload':
+        st.info(f"📁 **Analyzed File:** {results.get('filename', 'Unknown')}")
+    else:
+        st.info("🎥 **Live Recording Analysis**")
+    
+    # Overall score
+    combined_score = results.get('combined_score', 0)
+    depression_percentage = (combined_score / 27) * 100
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("Overall Depression Score", f"{combined_score:.1f}/27")
+    
+    with col2:
+        st.metric("Depression Percentage", f"{depression_percentage:.1f}%")
+    
+    with col3:
+        severity = "Unknown"
+        if combined_score < 5:
+            severity = "Minimal"
+        elif combined_score < 10:
+            severity = "Mild"
+        elif combined_score < 15:
+            severity = "Moderate"
+        elif combined_score < 20:
+            severity = "Moderately Severe"
+        else:
+            severity = "Severe"
+        st.metric("Overall Severity", severity)
+    
+    # Component analysis
+    st.subheader("🔍 Component Analysis")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("### 🎥 Video Analysis")
+        if results.get('video_emotions'):
+            display_video_results(results['video_emotions'], "Facial Expressions")
+        else:
+            st.warning("No video analysis data available")
+    
+    with col2:
+        st.write("### 🎵 Audio Analysis")
+        if results.get('audio_results'):
+            audio_results = results['audio_results']
+            st.write(f"**PHQ-like Score:** {audio_results.get('phq_score', 0):.1f}/27")
+            st.write(f"**Acoustic Score:** {audio_results.get('acoustic_score', 0):.1f}/27")
+            st.write(f"**Semantic Score:** {audio_results.get('semantic_score', 0):.1f}/27")
+            
+            # Show key insights
+            st.write("**Voice Insights:**")
+            for insight in audio_results.get('acoustic_insights', [])[:3]:
+                st.write(f"• {insight}")
+            
+            st.write("**Content Insights:**")
+            for insight in audio_results.get('semantic_insights', [])[:3]:
+                st.write(f"• {insight}")
+                
+            # Show transcript if available
+            if audio_results.get('transcript') and audio_results.get('transcript') not in ['Speech recognition unavailable', 'Analysis failed']:
+                with st.expander("View Speech Transcript"):
+                    st.write(audio_results['transcript'])
+        else:
+            st.warning("No audio analysis data available")
+
+    # Add this function after display_complete_session_results function
+
+def generate_combined_insights(results):
+    """Generate insights from combined video and audio analysis"""
+    insights = []
+    
+    video_emotions = results.get('video_emotions', {})
+    audio_results = results.get('audio_results', {})
+    combined_score = results.get('combined_score', 0)
+    
+    # Video-based insights
+    sadness_video = video_emotions.get('sad', 0)
+    if sadness_video > 25:
+        insights.append("⚠️ **High facial sadness**: Elevated sadness detected in facial expressions")
+    elif sadness_video > 15:
+        insights.append("ℹ️ **Moderate facial sadness**: Some sadness indicators in expressions")
+    
+    neutral_video = video_emotions.get('neutral', 0)
+    if neutral_video > 70:
+        insights.append("😐 **Flat affect**: Predominantly neutral facial expressions detected")
+    
+    # Audio-based insights
+    audio_score = audio_results.get('phq_score', 0)
+    if audio_score > 20:
+        insights.append("⚠️ **Severe vocal indicators**: Strong depression indicators in speech patterns")
+    elif audio_score > 15:
+        insights.append("ℹ️ **Moderate vocal indicators**: Some depression indicators in speech")
+    
+    # Combined insights
+    if combined_score > 20:
+        insights.append("🚨 **High overall concern**: Multiple indicators suggest significant emotional distress")
+    elif combined_score > 15:
+        insights.append("⚠️ **Moderate overall concern**: Several indicators of emotional distress present")
+    elif combined_score < 5:
+        insights.append("✅ **Positive indicators**: Minimal distress signals detected across modalities")
+    
+    # Consistency check
+    if (sadness_video > 20 and audio_score > 15):
+        insights.append("🔍 **Consistent indicators**: Both facial and vocal analysis show consistent emotional patterns")
+    
+    return insights if insights else ["📊 **Baseline analysis**: Standard emotional patterns detected"]
+
+def display_recommendations(combined_score, results):
+    """Display recommendations based on complete session analysis"""
+    if combined_score >= 20:
+        st.error("""
+        **🚨 Immediate Recommendation:**
+        - Consider consulting with a mental health professional
+        - Reach out to support networks
+        - Practice self-care and stress management
+        - Consider crisis resources if needed
+        """)
+    elif combined_score >= 15:
+        st.warning("""
+        **⚠️ Moderate Concern Recommendation:**
+        - Monitor emotional patterns regularly
+        - Consider speaking with a counselor
+        - Practice mindfulness and relaxation techniques
+        - Maintain social connections
+        """)
+    elif combined_score >= 10:
+        st.info("""
+        **ℹ️ Mild Concern Recommendation:**
+        - Continue self-monitoring
+        - Practice stress management
+        - Maintain healthy routines
+        - Consider preventive mental health practices
+        """)
+    else:
+        st.success("""
+        **✅ Maintenance Recommendation:**
+        - Continue current emotional wellness practices
+        - Regular self-check-ins
+        - Maintain healthy lifestyle habits
+        - Continue social engagement
+        """)
+    
+    # Combined insights
+    st.subheader("🧠 Combined Emotional Insights")
+    
+    # Generate insights based on combined data
+    insights = generate_combined_insights(results)
+    for insight in insights:
+        if "warning" in insight.lower() or "severe" in insight.lower():
+            st.warning(insight)
+        elif "positive" in insight.lower() or "good" in insight.lower():
+            st.success(insight)
+        else:
+            st.info(insight)
+    
+    # Recommendation
+    st.subheader("💡 Recommendations")
+    display_recommendations(combined_score, results)
+    
+    # Reset button
+    if st.button("🔄 New Complete Session", type="secondary", use_container_width=True):
+        reset_complete_session_state()
+        st.rerun()
+
+def reset_complete_session_state():
+    """Reset complete session states"""
+    st.session_state.complete_session_active = False
+    st.session_state.complete_session_results = None
+    st.session_state.complete_session_analyzing = False
+    st.session_state.complete_session_upload_processed = False
+    st.session_state.complete_session_video_file = None
 
 def display_audio_results(results):
     """Display audio analysis results"""
     st.subheader("🎵 Audio Analysis Results")
     
-    if results.get('demo_mode'):
-        st.info("🔸 **Demo Mode**: Showing simulated analysis results")
-    
     if 'error' in results:
         st.error(f"Analysis error: {results['error']}")
+        return
     
     # Main metrics
     col1, col2, col3 = st.columns(3)
@@ -901,58 +1361,6 @@ def display_text_results(result):
     
     if result.get('detected_language'):
         st.write(f"**Detected Language:** {result['detected_language'].upper()}")
-
-def demo_text_analysis():
-    """Demo text analysis"""
-    text_input = st.text_area(
-        "Enter text (demo mode):",
-        height=150,
-        placeholder="Describe your feelings...",
-        key="demo_text_input"
-    )
-    
-    if st.button("Show Demo Analysis", key="demo_analyze_text") and text_input:
-        demo_text_analysis_with_input(text_input)
-
-def demo_text_analysis_with_input(text_input):
-    """Demo analysis with input text"""
-    # Simple keyword-based analysis
-    text_lower = text_input.lower()
-    
-    # Mock analysis based on keywords
-    negative_words = ['sad', 'depressed', 'hopeless', 'anxious', 'stress', 'worried']
-    positive_words = ['happy', 'good', 'better', 'improving', 'excited']
-    
-    negative_count = sum(1 for word in negative_words if word in text_lower)
-    positive_count = sum(1 for word in positive_words if word in text_lower)
-    
-    if negative_count > 3:
-        severity = 'severe'
-    elif negative_count > 1:
-        severity = 'moderate'
-    elif positive_count > 2:
-        severity = 'minimal'
-    else:
-        severity = 'mild'
-    
-    mock_result = {
-        'severity': severity,
-        'confidence': 0.75,
-        'probabilities': {
-            'minimal': 0.2 if severity == 'minimal' else 0.1,
-            'mild': 0.3 if severity == 'mild' else 0.2,
-            'moderate': 0.4 if severity == 'moderate' else 0.3,
-            'severe': 0.3 if severity == 'severe' else 0.2
-        },
-        'demo_note': 'This is a demo analysis based on keyword matching'
-    }
-    
-    # Normalize probabilities
-    total = sum(mock_result['probabilities'].values())
-    for key in mock_result['probabilities']:
-        mock_result['probabilities'][key] /= total
-    
-    display_text_results(mock_result)
 
 if __name__ == "__main__":
     main()
