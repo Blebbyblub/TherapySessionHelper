@@ -1,0 +1,386 @@
+/* style.css - Dark Green Theme for Therapy Session Helper */
+
+/* Main theme colors - Darker greens */
+:root {
+  --primary-green: #1e8a5a;
+  --secondary-green: #166c48;
+  --dark-bg: #0f0f0f;
+  --darker-bg: #0a0a0a;
+  --card-bg: #1a1a1a;
+  --text-primary: #e8e8e8;
+  --text-secondary: #a0a0a0;
+  --accent-green: #239768;
+  --success-green: #0d9660;
+  --warning-amber: #d97706;
+  --error-red: #dc2626;
+}
+
+/* Main background */
+.stApp {
+  background: linear-gradient(
+    135deg,
+    var(--darker-bg) 0%,
+    var(--dark-bg) 50%,
+    #0a170f 100%
+  ) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Headers */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--primary-green) !important;
+  font-weight: 600 !important;
+}
+
+/* Main title */
+.stTitle {
+  color: var(--primary-green) !important;
+}
+
+/* Sidebar */
+.css-1d391kg,
+.css-1lcbmhc {
+  background-color: var(--card-bg) !important;
+  border-right: 1px solid #2d2d2d !important;
+}
+
+.sidebar .sidebar-content {
+  background-color: var(--card-bg) !important;
+}
+
+/* Buttons */
+.stButton > button {
+  background: linear-gradient(
+    135deg,
+    var(--primary-green),
+    var(--secondary-green)
+  ) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  padding: 10px 20px !important;
+  transition: all 0.3s ease !important;
+}
+
+.stButton > button:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(30, 138, 90, 0.4) !important;
+  background: linear-gradient(
+    135deg,
+    var(--accent-green),
+    var(--primary-green)
+  ) !important;
+}
+
+/* Secondary buttons */
+.stButton > button[kind="secondary"] {
+  background: transparent !important;
+  color: var(--primary-green) !important;
+  border: 1.5px solid var(--primary-green) !important;
+}
+
+.stButton > button[kind="secondary"]:hover {
+  background: rgba(30, 138, 90, 0.15) !important;
+  color: var(--primary-green) !important;
+  border-color: var(--accent-green) !important;
+}
+
+/* Metrics and value boxes */
+[data-testid="metric-container"] {
+  background-color: var(--card-bg) !important;
+  border: 1px solid #2d2d2d !important;
+  border-radius: 8px !important;
+  padding: 12px !important;
+}
+
+/* Success messages */
+.stSuccess {
+  background-color: rgba(13, 150, 96, 0.15) !important;
+  border: 1px solid var(--success-green) !important;
+  border-radius: 6px !important;
+  color: var(--success-green) !important;
+}
+
+/* Warning messages */
+.stWarning {
+  background-color: rgba(217, 119, 6, 0.15) !important;
+  border: 1px solid var(--warning-amber) !important;
+  border-radius: 6px !important;
+  color: var(--warning-amber) !important;
+}
+
+/* Error messages */
+.stError {
+  background-color: rgba(220, 38, 38, 0.15) !important;
+  border: 1px solid var(--error-red) !important;
+  border-radius: 6px !important;
+  color: var(--error-red) !important;
+}
+
+/* Info messages */
+.stInfo {
+  background-color: rgba(30, 138, 90, 0.15) !important;
+  border: 1px solid var(--primary-green) !important;
+  border-radius: 6px !important;
+  color: var(--primary-green) !important;
+}
+
+/* Radio buttons */
+.st-bb {
+  background-color: var(--card-bg) !important;
+}
+
+.st-bc {
+  color: var(--primary-green) !important;
+}
+
+.st-bd {
+  border-color: var(--primary-green) !important;
+}
+
+/* Text input */
+.stTextInput > div > div > input {
+  background-color: #1f1f1f !important;
+  color: var(--text-primary) !important;
+  border: 1px solid #2d2d2d !important;
+  border-radius: 6px !important;
+}
+
+.stTextInput > div > div > input:focus {
+  border-color: var(--primary-green) !important;
+  box-shadow: 0 0 0 1px rgba(30, 138, 90, 0.4) !important;
+}
+
+/* Text area */
+.stTextArea > div > div > textarea {
+  background-color: #1f1f1f !important;
+  color: var(--text-primary) !important;
+  border: 1px solid #2d2d2d !important;
+  border-radius: 6px !important;
+}
+
+.stTextArea > div > div > textarea:focus {
+  border-color: var(--primary-green) !important;
+  box-shadow: 0 0 0 1px rgba(30, 138, 90, 0.4) !important;
+}
+
+/* File uploader */
+.stFileUploader > div {
+  background-color: #1f1f1f !important;
+  border: 2px dashed #2d2d2d !important;
+  border-radius: 6px !important;
+  color: var(--text-primary) !important;
+}
+
+.stFileUploader > div:hover {
+  border-color: var(--primary-green) !important;
+  background-color: rgba(30, 138, 90, 0.08) !important;
+}
+
+/* Progress bars */
+.stProgress > div > div > div > div {
+  background-color: var(--primary-green) !important;
+}
+
+/* Expander */
+.streamlit-expanderHeader {
+  background-color: #1f1f1f !important;
+  color: var(--text-primary) !important;
+  border: 1px solid #2d2d2d !important;
+  border-radius: 6px !important;
+}
+
+.streamlit-expanderHeader:hover {
+  border-color: var(--primary-green) !important;
+}
+
+.streamlit-expanderContent {
+  background-color: #1f1f1f !important;
+  border: 1px solid #2d2d2d !important;
+  border-top: none !important;
+  border-radius: 0 0 6px 6px !important;
+}
+
+/* Tabs */
+.stTabs [data-baseweb="tab-list"] {
+  background-color: var(--card-bg) !important;
+  gap: 1px !important;
+}
+
+.stTabs [data-baseweb="tab"] {
+  background-color: #1f1f1f !important;
+  color: var(--text-secondary) !important;
+  border-radius: 4px 4px 0 0 !important;
+  border: 1px solid #2d2d2d !important;
+  margin: 0 2px !important;
+}
+
+.stTabs [aria-selected="true"] {
+  background-color: var(--primary-green) !important;
+  color: #ffffff !important;
+  border-color: var(--primary-green) !important;
+}
+
+/* Custom spacing adjustments */
+.main .block-container {
+  padding-top: 1.5rem !important;
+  padding-bottom: 1.5rem !important;
+  padding-left: 2rem !important;
+  padding-right: 2rem !important;
+  max-width: 100% !important;
+}
+
+/* Column spacing */
+[data-testid="column"] {
+  padding: 0.75rem !important;
+}
+
+/* Custom card styling */
+.custom-card {
+  background-color: #1f1f1f !important;
+  border: 1px solid #2d2d2d !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  margin: 0.75rem 0 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Feature cards on main page */
+.feature-card {
+  background: linear-gradient(135deg, #1f1f1f 0%, #1a231e 100%) !important;
+  border: 1px solid #2d2d2d !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  height: 100% !important;
+  transition: all 0.3s ease !important;
+  cursor: pointer !important;
+  color: var(--text-primary) !important;
+}
+
+.feature-card:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 16px rgba(30, 138, 90, 0.2) !important;
+  border-color: var(--primary-green) !important;
+  background: linear-gradient(135deg, #1f1f1f 0%, #1c2921 100%) !important;
+}
+
+.feature-card h4 {
+  color: var(--primary-green) !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.feature-card p {
+  color: var(--text-secondary) !important;
+  margin-bottom: 0.75rem !important;
+}
+
+.feature-card small {
+  color: var(--text-secondary) !important;
+}
+
+/* Plotly chart background */
+.js-plotly-plot .plotly .modebar {
+  background-color: transparent !important;
+}
+
+.plotly .main-svg {
+  background-color: #1f1f1f !important;
+}
+
+/* Radio button group */
+.st-bx {
+  background-color: #1f1f1f !important;
+}
+
+/* Select boxes */
+.stSelectbox > div > div {
+  background-color: #1f1f1f !important;
+  color: var(--text-primary) !important;
+  border: 1px solid #2d2d2d !important;
+}
+
+.stSelectbox > div > div:hover {
+  border-color: var(--primary-green) !important;
+}
+
+/* Markdown text */
+.stMarkdown {
+  color: var(--text-primary) !important;
+}
+
+.stMarkdown p {
+  color: var(--text-primary) !important;
+}
+
+.stMarkdown li {
+  color: var(--text-primary) !important;
+}
+
+/* Data editor and tables */
+.stDataFrame {
+  background-color: #1f1f1f !important;
+}
+
+/* Loading spinner */
+.stSpinner > div {
+  border-color: var(--primary-green) !important;
+}
+
+/* Metric labels */
+[data-testid="stMetricLabel"] {
+  color: var(--text-secondary) !important;
+}
+
+[data-testid="stMetricValue"] {
+  color: var(--text-primary) !important;
+}
+
+/* Divider */
+hr {
+  border-color: #2d2d2d !important;
+  margin: 1.5rem 0 !important;
+}
+
+/* Code blocks */
+.stCodeBlock {
+  background-color: #1f1f1f !important;
+  border: 1px solid #2d2d2d !important;
+  border-radius: 6px !important;
+}
+
+/* Alert boxes */
+.stAlert {
+  border-radius: 6px !important;
+}
+
+/* Hide Streamlit branding */
+#MainMenu {
+  visibility: hidden;
+}
+footer {
+  visibility: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--dark-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--primary-green);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-green);
+}

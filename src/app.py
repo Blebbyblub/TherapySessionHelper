@@ -1,4 +1,4 @@
-# app.py (COMPLETELY FIXED VERSION WITH COMPLETE SESSION AND UPLOAD)
+# app.py (COMPLETE UPDATED VERSION WITH PROPER GREEN DARK THEME)
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -8,6 +8,30 @@ import tempfile
 import os
 import time
 from datetime import datetime
+
+# Page configuration - MUST be the first Streamlit command
+st.set_page_config(
+    page_title="Therapy Session Helper",
+    page_icon="🧠",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Load custom CSS
+def load_css():
+    try:
+        with open("style.css") as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    except FileNotFoundError:
+        # Fallback basic styling
+        st.markdown("""
+        <style>
+        .main .block-container {padding-top: 2rem; padding-bottom: 2rem;}
+        .stApp {background-color: #0a0a0a; color: white;}
+        h1, h2, h3 {color: #00ff88 !important;}
+        .stButton>button {background-color: #00ff88; color: black;}
+        </style>
+        """, unsafe_allow_html=True)
 
 def safe_import(module_name, class_name):
     """Safely import modules with detailed error handling"""
@@ -74,6 +98,9 @@ def load_audio_detector():
 def initialize_session_state():
     """Initialize all session state variables"""
     defaults = {
+        # Navigation
+        'current_page': 'main',
+        
         # Video analysis states
         'video_recording': False,
         'video_results': None,
@@ -118,67 +145,305 @@ def initialize_session_state():
             st.session_state[key] = value
 
 def main():
-    st.title("🧠 Therapy Session Helper - Multi-Modal Analysis")
-    st.markdown("Comprehensive emotional analysis through video, audio, and text")
+    # Load custom CSS
+    load_css()
     
     # Initialize session state
     initialize_session_state()
     
-    # Load models
-    text_predictor = load_predictor()
-    facial_analyzer = load_facial_analyzer()
-    audio_detector = load_audio_detector()
+    # Sidebar navigation
+    with st.sidebar:
+        st.markdown("""
+        <style>
+        .sidebar .sidebar-content {
+            background-color: #1a1a1a;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        st.header("🧠 Therapy Session Helper")
+        st.markdown("---")
+        
+        # Navigation options
+        nav_options = {
+            "🏠 Main Dashboard": "main",
+            "📝 Text Analysis": "text",
+            "🎥 Video Analysis": "video", 
+            "🎵 Audio Analysis": "audio",
+            "💬 Complete Session": "complete"
+        }
+        
+        # Create navigation
+        for label, page in nav_options.items():
+            if st.button(label, use_container_width=True, 
+                        type="primary" if st.session_state.current_page == page else "secondary"):
+                st.session_state.current_page = page
+                st.rerun()
+        
+        st.markdown("---")
+        
+        # Model status
+        st.subheader("Model Status")
+        text_predictor = load_predictor()
+        facial_analyzer = load_facial_analyzer()
+        audio_detector = load_audio_detector()
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.markdown("📝" if text_predictor else "❌")
+        with col2:
+            st.markdown("🎥" if facial_analyzer else "❌")
+        with col3:
+            st.markdown("🎵" if audio_detector else "❌")
     
-    # Show availability status
-    col1, col2, col3 = st.columns(3)
+    # Page routing
+    if st.session_state.current_page == "main":
+        show_main_dashboard()
+    elif st.session_state.current_page == "text":
+        text_analysis(load_predictor())
+    elif st.session_state.current_page == "video":
+        video_analysis(load_facial_analyzer())
+    elif st.session_state.current_page == "audio":
+        audio_analysis(load_audio_detector())
+    elif st.session_state.current_page == "complete":
+        complete_session(load_facial_analyzer(), load_audio_detector())
+
+def show_main_dashboard():
+    """Main dashboard with app explanation and feature navigation"""
+    
+    # Header section
+    col1 = st.columns([1])[0]
     with col1:
-        if text_predictor:
-            st.success("✅ Text analysis available")
-        else:
-            st.error("❌ Text analysis unavailable")
+        st.title("🧠 Therapy Session Helper")
+        st.markdown("### Multi-Modal Mental Health Analysis Platform")
+        
+    st.markdown("---")
+    
+    # App description
+    st.markdown("""
+    <div style="background-color: #1a1a1a; border: 1px solid #00cc6a; border-radius: 12px; padding: 2rem; margin: 1rem 0;">
+    <h3 style="color: #00ff88; margin-bottom: 1rem;">🌟 About This Application</h3>
+    <p style="color: #ffffff; margin-bottom: 1rem;">This advanced therapeutic tool uses artificial intelligence to analyze multiple modalities of emotional expression, 
+    providing comprehensive insights into mental well-being through state-of-the-art machine learning models.</p>
+    
+    <p style="color: #ffffff; margin-bottom: 0.5rem;"><strong>🔒 Privacy First:</strong> All analysis happens locally on your device - your data never leaves your computer.</p>
+    <p style="color: #ffffff; margin-bottom: 0.5rem;"><strong>🧠 Science Backed:</strong> Based on established psychological assessment methods and clinical research.</p>
+    <p style="color: #ffffff; margin-bottom: 0;"><strong>💡 Supportive Tool:</strong> Designed to complement professional care, not replace it.</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Feature cards
+    st.subheader("🎯 Available Analysis Methods")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #1a1a1a 0%, #1a2a1a 100%); border: 1px solid #00cc6a; border-radius: 12px; padding: 2rem; height: 100%; transition: all 0.3s ease;">
+        <h4 style="color: #00ff88; margin-bottom: 1rem;">📝 Text Analysis</h4>
+        <p style="color: #b0b0b0; margin-bottom: 1rem;">Analyze written emotional content using advanced NLP models to detect depression patterns in text.</p>
+        <small style="color: #b0b0b0;"><strong>Best for:</strong> Journal entries, written thoughts</small>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Go to Text Analysis", key="nav_text", use_container_width=True):
+            st.session_state.current_page = "text"
+            st.rerun()
     
     with col2:
-        if facial_analyzer:
-            st.success("✅ Facial analysis available")
-        else:
-            st.error("❌ Facial analysis unavailable")
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #1a1a1a 0%, #1a2a1a 100%); border: 1px solid #00cc6a; border-radius: 12px; padding: 2rem; height: 100%; transition: all 0.3s ease;">
+        <h4 style="color: #00ff88; margin-bottom: 1rem;">🎥 Video Analysis</h4>
+        <p style="color: #b0b0b0; margin-bottom: 1rem;">Facial expression analysis using computer vision to detect emotional states from video recordings.</p>
+        <small style="color: #b0b0b0;"><strong>Best for:</strong> Facial emotion tracking</small>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Go to Video Analysis", key="nav_video", use_container_width=True):
+            st.session_state.current_page = "video"
+            st.rerun()
     
     with col3:
-        if audio_detector:
-            st.success("✅ Audio analysis available")
-        else:
-            st.error("❌ Audio analysis unavailable")
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #1a1a1a 0%, #1a2a1a 100%); border: 1px solid #00cc6a; border-radius: 12px; padding: 2rem; height: 100%; transition: all 0.3s ease;">
+        <h4 style="color: #00ff88; margin-bottom: 1rem;">🎵 Audio Analysis</h4>
+        <p style="color: #b0b0b0; margin-bottom: 1rem;">Voice pattern analysis detecting depression indicators through acoustic features and speech content.</p>
+        <small style="color: #b0b0b0;"><strong>Best for:</strong> Voice recordings, speech patterns</small>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Go to Audio Analysis", key="nav_audio", use_container_width=True):
+            st.session_state.current_page = "audio"
+            st.rerun()
     
-    # Sidebar
-    st.sidebar.header("Analysis Options")
+    with col4:
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #1a1a1a 0%, #1a2a1a 100%); border: 1px solid #00cc6a; border-radius: 12px; padding: 2rem; height: 100%; transition: all 0.3s ease;">
+        <h4 style="color: #00ff88; margin-bottom: 1rem;">💬 Complete Session</h4>
+        <p style="color: #b0b0b0; margin-bottom: 1rem;">Comprehensive multi-modal analysis combining video, audio, and contextual data for holistic assessment.</p>
+        <small style="color: #b0b0b0;"><strong>Best for:</strong> Complete emotional assessment</small>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Go to Complete Session", key="nav_complete", use_container_width=True):
+            st.session_state.current_page = "complete"
+            st.rerun()
     
-    # Determine available analysis modes
-    available_modes = ["Text Analysis"]
+    # How it works section
+    st.markdown("---")
+    st.subheader("🔬 How Each Analysis Works")
     
-    if facial_analyzer:
-        available_modes.append("Video Analysis")
-    if audio_detector:
-        available_modes.append("Audio Analysis")
-    if facial_analyzer and audio_detector:
-        available_modes.append("Complete Session")
+    tab1, tab2, tab3, tab4 = st.tabs(["📝 Text", "🎥 Video", "🎵 Audio", "💬 Complete"])
     
-    analysis_mode = st.sidebar.radio(
-        "Select Analysis Type:",
-        available_modes
+    with tab1:
+        st.markdown("""
+        <div style="background-color: #1a1a1a; border: 1px solid #00cc6a; border-radius: 12px; padding: 2rem; margin: 1rem 0;">
+        <h4 style="color: #00ff88; margin-bottom: 1rem;">Text Analysis Pipeline</h4>
+        <ol style="color: #ffffff;">
+        <li style="margin-bottom: 0.5rem;"><strong>Input:</strong> User provides written text about their feelings</li>
+        <li style="margin-bottom: 0.5rem;"><strong>Processing:</strong> NLP model analyzes linguistic patterns</li>
+        <li style="margin-bottom: 0.5rem;"><strong>Detection:</strong> Identifies depression indicators in:
+            <ul style="margin-top: 0.5rem;">
+            <li>Word choice and sentiment</li>
+            <li>Sentence structure complexity</li>
+            <li>Emotional tone and themes</li>
+            </ul>
+        </li>
+        <li style="margin-bottom: 0;"><strong>Output:</strong> Severity assessment with confidence scores</li>
+        </ol>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with tab2:
+        st.markdown("""
+        <div style="background-color: #1a1a1a; border: 1px solid #00cc6a; border-radius: 12px; padding: 2rem; margin: 1rem 0;">
+        <h4 style="color: #00ff88; margin-bottom: 1rem;">Video Analysis Pipeline</h4>
+        <ol style="color: #ffffff;">
+        <li style="margin-bottom: 0.5rem;"><strong>Input:</strong> Live recording or uploaded video</li>
+        <li style="margin-bottom: 0.5rem;"><strong>Processing:</strong> Computer vision detects facial landmarks</li>
+        <li style="margin-bottom: 0.5rem;"><strong>Analysis:</strong> Emotion classification based on:
+            <ul style="margin-top: 0.5rem;">
+            <li>Facial muscle movements</li>
+            <li>Micro-expressions</li>
+            <li>Emotion distribution over time</li>
+            </ul>
+        </li>
+        <li style="margin-bottom: 0;"><strong>Output:</strong> Emotional state profile and insights</li>
+        </ol>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with tab3:
+        st.markdown("""
+        <div style="background-color: #1a1a1a; border: 1px solid #00cc6a; border-radius: 12px; padding: 2rem; margin: 1rem 0;">
+        <h4 style="color: #00ff88; margin-bottom: 1rem;">Audio Analysis Pipeline</h4>
+        <ol style="color: #ffffff;">
+        <li style="margin-bottom: 0.5rem;"><strong>Input:</strong> Voice recording or audio file</li>
+        <li style="margin-bottom: 0.5rem;"><strong>Processing:</strong> Audio feature extraction and speech recognition</li>
+        <li style="margin-bottom: 0.5rem;"><strong>Analysis:</strong> Dual analysis of:
+            <ul style="margin-top: 0.5rem;">
+            <li><strong>Acoustic Features:</strong> Pitch, tone, speech rate, pauses</li>
+            <li><strong>Semantic Content:</strong> Speech content and themes</li>
+            </ul>
+        </li>
+        <li style="margin-bottom: 0;"><strong>Output:</strong> Comprehensive audio-based assessment</li>
+        </ol>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with tab4:
+        st.markdown("""
+        <div style="background-color: #1a1a1a; border: 1px solid #00cc6a; border-radius: 12px; padding: 2rem; margin: 1rem 0;">
+        <h4 style="color: #00ff88; margin-bottom: 1rem;">Complete Session Pipeline</h4>
+        <ol style="color: #ffffff;">
+        <li style="margin-bottom: 0.5rem;"><strong>Input:</strong> Combined video and audio recording</li>
+        <li style="margin-bottom: 0.5rem;"><strong>Processing:</strong> Synchronized multi-modal analysis</li>
+        <li style="margin-bottom: 0.5rem;"><strong>Integration:</strong> Combines insights from:
+            <ul style="margin-top: 0.5rem;">
+            <li>Facial expression analysis</li>
+            <li>Voice pattern analysis</li>
+            <li>Speech content analysis</li>
+            </ul>
+        </li>
+        <li style="margin-bottom: 0;"><strong>Output:</strong> Holistic emotional assessment with cross-validation</li>
+        </ol>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Usage guidelines
+    st.markdown("---")
+    st.subheader("📋 Usage Guidelines")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        <div style="background-color: #1a1a1a; border: 1px solid #00cc6a; border-radius: 12px; padding: 2rem; margin: 1rem 0;">
+        <h4 style="color: #00ff88; margin-bottom: 1rem;">✅ Best Practices</h4>
+        <ul style="color: #ffffff;">
+        <li>Use in quiet, well-lit environments</li>
+        <li>Speak naturally and authentically</li>
+        <li>Allow genuine emotional expression</li>
+        <li>Record for sufficient duration (1-3 minutes)</li>
+        <li>Use regularly for tracking over time</li>
+        </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div style="background-color: #1a1a1a; border: 1px solid #00cc6a; border-radius: 12px; padding: 2rem; margin: 1rem 0;">
+        <h4 style="color: #00ff88; margin-bottom: 1rem;">⚠️ Important Notes</h4>
+        <ul style="color: #ffffff;">
+        <li>This tool is for support, not diagnosis</li>
+        <li>Consult professionals for clinical assessment</li>
+        <li>Results are indicators, not definitive</li>
+        <li>Privacy is maintained - data stays local</li>
+        <li>Use as part of comprehensive self-care</li>
+        </ul>
+        </div>
+        """, unsafe_allow_html=True)
+
+def text_analysis(predictor):
+    """Text-based depression analysis"""
+    st.header("📝 Text Analysis")
+    
+    # Add navigation back to main
+    if st.button("← Back to Main", key="text_back"):
+        st.session_state.current_page = "main"
+        st.rerun()
+    
+    if predictor is None:
+        st.error("❌ Text analysis model not available")
+        return
+    
+    text_input = st.text_area(
+        "Enter text to analyze:",
+        height=150,
+        placeholder="Describe how you're feeling or paste text to analyze...",
+        key="text_input"
     )
     
-    if analysis_mode == "Text Analysis":
-        text_analysis(text_predictor)
-    elif analysis_mode == "Audio Analysis":
-        audio_analysis(audio_detector)
-    elif analysis_mode == "Video Analysis":
-        video_analysis(facial_analyzer)
-    else:
-        complete_session(facial_analyzer, audio_detector)
+    if st.button("Analyze Text", type="primary", key="analyze_text") and text_input:
+        with st.spinner("Analyzing text content..."):
+            try:
+                # Use the available method
+                if hasattr(predictor, 'predict_severity'):
+                    result = predictor.predict_severity(text_input)
+                elif hasattr(predictor, 'predict'):
+                    result = predictor.predict([text_input])[0]
+                else:
+                    st.error("No prediction method available")
+                    return
+                
+                display_text_results(result)
+            except Exception as e:
+                st.error(f"❌ Analysis error: {e}")
 
 def video_analysis(facial_analyzer):
     """Video-based emotion analysis with manual recording"""
     st.header("🎥 Video Emotion Analysis")
+    
+    # Add navigation back to main
+    if st.button("← Back to Main", key="video_back"):
+        st.session_state.current_page = "main"
+        st.rerun()
     
     if facial_analyzer is None:
         st.error("❌ Video analysis not available")
@@ -428,6 +693,11 @@ def audio_analysis(audio_detector):
     """Audio-based depression analysis with manual recording and file upload"""
     st.header("🎵 Audio Analysis")
     
+    # Add navigation back to main
+    if st.button("← Back to Main", key="audio_back"):
+        st.session_state.current_page = "main"
+        st.rerun()
+    
     if audio_detector is None:
         st.error("❌ Audio analysis not available")
         return
@@ -650,40 +920,14 @@ def display_audio_tips():
         - Minimal background noise
         """)
 
-def text_analysis(predictor):
-    """Text-based depression analysis"""
-    st.header("📝 Text Analysis")
-    
-    if predictor is None:
-        st.error("❌ Text analysis model not available")
-        return
-    
-    text_input = st.text_area(
-        "Enter text to analyze:",
-        height=150,
-        placeholder="Describe how you're feeling or paste text to analyze...",
-        key="text_input"
-    )
-    
-    if st.button("Analyze Text", type="primary", key="analyze_text") and text_input:
-        with st.spinner("Analyzing text content..."):
-            try:
-                # Use the available method
-                if hasattr(predictor, 'predict_severity'):
-                    result = predictor.predict_severity(text_input)
-                elif hasattr(predictor, 'predict'):
-                    result = predictor.predict([text_input])[0]
-                else:
-                    st.error("No prediction method available")
-                    return
-                
-                display_text_results(result)
-            except Exception as e:
-                st.error(f"❌ Analysis error: {e}")
-
 def complete_session(facial_analyzer, audio_detector):
     """Complete multi-modal analysis session - Both recording and video upload options"""
     st.header("💬 Complete Therapy Session")
+    
+    # Add navigation back to main
+    if st.button("← Back to Main", key="complete_back"):
+        st.session_state.current_page = "main"
+        st.rerun()
     
     if not facial_analyzer or not audio_detector:
         st.error("❌ Both video and audio analysis required for complete session")
@@ -1073,8 +1317,28 @@ def display_complete_session_results():
                     st.write(audio_results['transcript'])
         else:
             st.warning("No audio analysis data available")
-
-    # Add this function after display_complete_session_results function
+    
+    # Combined insights
+    st.subheader("🧠 Combined Emotional Insights")
+    
+    # Generate insights based on combined data
+    insights = generate_combined_insights(results)
+    for insight in insights:
+        if "warning" in insight.lower() or "severe" in insight.lower():
+            st.warning(insight)
+        elif "positive" in insight.lower() or "good" in insight.lower():
+            st.success(insight)
+        else:
+            st.info(insight)
+    
+    # Recommendation
+    st.subheader("💡 Recommendations")
+    display_recommendations(combined_score, results)
+    
+    # Reset button
+    if st.button("🔄 New Complete Session", type="secondary", use_container_width=True):
+        reset_complete_session_state()
+        st.rerun()
 
 def generate_combined_insights(results):
     """Generate insights from combined video and audio analysis"""
@@ -1150,28 +1414,6 @@ def display_recommendations(combined_score, results):
         - Maintain healthy lifestyle habits
         - Continue social engagement
         """)
-    
-    # Combined insights
-    st.subheader("🧠 Combined Emotional Insights")
-    
-    # Generate insights based on combined data
-    insights = generate_combined_insights(results)
-    for insight in insights:
-        if "warning" in insight.lower() or "severe" in insight.lower():
-            st.warning(insight)
-        elif "positive" in insight.lower() or "good" in insight.lower():
-            st.success(insight)
-        else:
-            st.info(insight)
-    
-    # Recommendation
-    st.subheader("💡 Recommendations")
-    display_recommendations(combined_score, results)
-    
-    # Reset button
-    if st.button("🔄 New Complete Session", type="secondary", use_container_width=True):
-        reset_complete_session_state()
-        st.rerun()
 
 def reset_complete_session_state():
     """Reset complete session states"""
