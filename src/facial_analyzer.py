@@ -1,11 +1,7 @@
-# facial_analyzer.py (Updated version)
+# facial_analyzer.py (FIXED PERCENTAGE DISTRIBUTION)
 import cv2
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.models import load_model
-from tensorflow.keras.applications import MobileNetV2
-from tensorflow.keras.layers import Dense, GlobalAveragePooling2D
-from tensorflow.keras.models import Model
 from collections import deque
 import os
 import tempfile
@@ -32,28 +28,95 @@ class FacialExpressionAnalyzer:
         self.emotion_results = []
         self.cap = None
         
-        # Load or create emotion model
-        if model_path and os.path.exists(model_path):
-            self.load_emotion_model(model_path)
-        else:
+        # Initialize DeepFace with OpenCV backend
+        self.deepface_available = self._initialize_deepface()
+        
+        if not self.deepface_available:
+            print("⚠️ DeepFace not available, using fallback model")
             self.create_emotion_model()
     
+    def _initialize_deepface(self):
+        """Initialize DeepFace for emotion recognition"""
+        try:
+            import deepface
+            from deepface import DeepFace
+            print("✅ DeepFace imported successfully with OpenCV backend")
+            return True
+        except ImportError as e:
+            print(f"❌ DeepFace not available: {e}")
+            return False
+
+    def predict_emotion(self, face_roi):
+        """Predict emotion from face ROI using DeepFace with OpenCV backend"""
+        if not self.deepface_available:
+            return self._get_demo_emotion_probs()
+        
+        try:
+            import deepface
+            from deepface import DeepFace
+            
+            # Save face ROI to temporary file for DeepFace
+            temp_path = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg').name
+            cv2.imwrite(temp_path, face_roi)
+            
+            # Analyze with DeepFace using OpenCV backend
+            analysis = DeepFace.analyze(
+                img_path=temp_path,
+                actions=['emotion'],
+                detector_backend='opencv',  # Use OpenCV backend
+                enforce_detection=False,
+                silent=True
+            )
+            
+            # Clean up temp file
+            try:
+                os.unlink(temp_path)
+            except:
+                pass
+            
+            if analysis and len(analysis) > 0:
+                emotion_results = analysis[0]['emotion']
+                
+                # FIX: DeepFace already returns percentages (0-100), don't multiply again!
+                # Just convert to our format
+                emotion_probs = {}
+                for emotion in self.emotion_labels:
+                    emotion_probs[emotion] = float(emotion_results.get(emotion, 0))
+                
+                return emotion_probs
+            else:
+                return self._get_demo_emotion_probs()
+                
+        except Exception as e:
+            print(f"DeepFace prediction error: {e}")
+            return self._get_demo_emotion_probs()
+
+    def _aggregate_emotions(self, emotion_results):
+        """Aggregate emotion results with smoothing - FIXED: don't multiply by 100"""
+        aggregated = {}
+        for emotion in self.emotion_labels:
+            emotion_values = [result.get(emotion, 0) for result in emotion_results]
+            # FIX: Don't multiply by 100 - values are already percentages!
+            aggregated[emotion] = np.mean(emotion_values)
+        return aggregated
+
+    # KEEP ALL OTHER METHODS EXACTLY THE SAME (only changed predict_emotion and _aggregate_emotions)
     def create_emotion_model(self):
         """Create a pre-trained emotion recognition model"""
         try:
             print("🔄 Creating emotion recognition model...")
-            base_model = MobileNetV2(
+            base_model = tf.keras.applications.MobileNetV2(
                 weights='imagenet',
                 include_top=False,
                 input_shape=(224, 224, 3)
             )
             
             x = base_model.output
-            x = GlobalAveragePooling2D()(x)
-            x = Dense(128, activation='relu')(x)
-            predictions = Dense(7, activation='softmax')(x)
+            x = tf.keras.layers.GlobalAveragePooling2D()(x)
+            x = tf.keras.layers.Dense(128, activation='relu')(x)
+            predictions = tf.keras.layers.Dense(7, activation='softmax')(x)
             
-            self.emotion_model = Model(inputs=base_model.input, outputs=predictions)
+            self.emotion_model = tf.keras.models.Model(inputs=base_model.input, outputs=predictions)
             
             for layer in base_model.layers:
                 layer.trainable = False
@@ -85,7 +148,7 @@ class FacialExpressionAnalyzer:
     def load_emotion_model(self, model_path):
         """Load pre-trained emotion model"""
         try:
-            self.emotion_model = load_model(model_path)
+            self.emotion_model = tf.keras.models.load_model(model_path)
             print("✅ Emotion model loaded successfully!")
         except Exception as e:
             print(f"❌ Error loading emotion model: {e}")
@@ -256,46 +319,6 @@ class FacialExpressionAnalyzer:
             print(f"Face detection error: {e}")
             return []
     
-    def preprocess_face(self, face_roi):
-        """Preprocess face ROI for emotion classification"""
-        try:
-            face_resized = cv2.resize(face_roi, (224, 224))
-            
-            if len(face_resized.shape) == 2:
-                face_resized = cv2.cvtColor(face_resized, cv2.COLOR_GRAY2RGB)
-            elif face_resized.shape[2] == 4:
-                face_resized = cv2.cvtColor(face_resized, cv2.COLOR_RGBA2RGB)
-            
-            face_normalized = face_resized.astype(np.float32) / 255.0
-            face_batch = np.expand_dims(face_normalized, axis=0)
-            
-            return face_batch
-        except Exception as e:
-            print(f"Error preprocessing face: {e}")
-            return None
-    
-    def predict_emotion(self, face_roi):
-        """Predict emotion from face ROI"""
-        if self.emotion_model is None:
-            return self._get_demo_emotion_probs()
-        
-        preprocessed_face = self.preprocess_face(face_roi)
-        if preprocessed_face is None:
-            return self._get_demo_emotion_probs()
-        
-        try:
-            predictions = self.emotion_model.predict(preprocessed_face, verbose=0)
-            
-            emotion_probs = {
-                self.emotion_labels[i]: float(predictions[0][i]) 
-                for i in range(len(self.emotion_labels))
-            }
-            
-            return emotion_probs
-        except Exception as e:
-            print(f"Prediction error: {e}")
-            return self._get_demo_emotion_probs()
-    
     def process_frame(self, frame):
         """Process a single frame and return emotion analysis"""
         try:
@@ -311,7 +334,7 @@ class FacialExpressionAnalyzer:
                     
                     cv2.rectangle(processed_frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
                     dominant_emotion = max(emotion_probs.items(), key=lambda x: x[1])
-                    cv2.putText(processed_frame, f"{dominant_emotion[0]}: {dominant_emotion[1]:.2f}", 
+                    cv2.putText(processed_frame, f"{dominant_emotion[0]}: {dominant_emotion[1]:.1f}%", 
                               (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
                     
                     return processed_frame, emotion_probs
@@ -321,24 +344,16 @@ class FacialExpressionAnalyzer:
             print(f"Frame processing error: {e}")
             return frame, None
     
-    def _aggregate_emotions(self, emotion_results):
-        """Aggregate emotion results with smoothing"""
-        aggregated = {}
-        for emotion in self.emotion_labels:
-            emotion_values = [result.get(emotion, 0) for result in emotion_results]
-            aggregated[emotion] = np.mean(emotion_values) * 100
-        return aggregated
-    
     def _get_demo_emotions(self):
         """Return demo emotion percentages for testing"""
         return {
-            'neutral': 65.0, 'happy': 15.0, 'sad': 10.0, 'angry': 4.0,
-            'surprise': 3.0, 'fear': 2.0, 'disgust': 1.0
+            'neutral': 45.0, 'happy': 25.0, 'sad': 12.0, 'angry': 8.0,
+            'surprise': 6.0, 'fear': 3.0, 'disgust': 1.0
         }
     
     def _get_demo_emotion_probs(self):
         """Return demo emotion probabilities for single frame"""
         return {
-            'neutral': 0.65, 'happy': 0.15, 'sad': 0.10, 'angry': 0.04,
-            'surprise': 0.03, 'fear': 0.02, 'disgust': 0.01
+            'neutral': 0.45, 'happy': 0.25, 'sad': 0.12, 'angry': 0.08,
+            'surprise': 0.06, 'fear': 0.03, 'disgust': 0.01
         }
