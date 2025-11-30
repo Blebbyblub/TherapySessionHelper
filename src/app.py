@@ -1,4 +1,4 @@
-# app.py (Fixed version with proper upload handling)
+# app.py (COMPLETELY FIXED VERSION)
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -82,20 +82,21 @@ def initialize_session_state():
         'video_stop_clicked': False,
         'recording_start_time': None,
         
+        # Video upload states
+        'video_upload_analyzing': False,
+        'video_upload_processed': False,
+        'uploaded_video_file': None,
+        
         # Audio analysis states
         'audio_recording': False,
         'audio_results': None,
         'audio_analyzing': False,
         'audio_recording_started': False,
         'audio_stop_clicked': False,
+        
+        # Audio upload states
         'audio_upload_analyzing': False,
-        
-        # Video upload states
-        'video_upload_analyzing': False,
-        'video_upload_processed': False,
-        
-        # Upload files
-        'uploaded_video_file': None,
+        'audio_upload_processed': False,
         'uploaded_audio_file': None,
         
         # General states
@@ -314,7 +315,7 @@ def display_video_current_status():
         st.success("✅ **Ready to Record**")
 
 def handle_video_upload(facial_analyzer):
-    """Handle video file upload and analysis"""
+    """Handle video file upload and analysis - FIXED VERSION"""
     uploaded_video = st.file_uploader("Or upload existing video", 
                                     type=['mp4', 'avi', 'mov'],
                                     help="Upload MP4, AVI, or MOV files for analysis",
@@ -336,10 +337,13 @@ def handle_video_upload(facial_analyzer):
             st.session_state.video_upload_processed = False
             st.rerun()
     
-    # Handle uploaded video analysis - ONLY when explicitly triggered
+    # Handle uploaded video analysis - ONLY when explicitly triggered and not already processed
     if (st.session_state.video_upload_analyzing and 
         st.session_state.uploaded_video_file and
         not st.session_state.video_upload_processed):
+        
+        # Mark as processing immediately to prevent re-triggering
+        st.session_state.video_upload_processed = True
         
         with st.spinner(f"🔄 Analyzing {st.session_state.uploaded_video_file.name}..."):
             try:
@@ -348,7 +352,6 @@ def handle_video_upload(facial_analyzer):
                     'emotions': emotion_results,
                     'video_path': "uploaded_file"
                 }
-                st.session_state.video_upload_processed = True
             except Exception as e:
                 st.error(f"❌ Error analyzing video: {e}")
                 # Fallback to demo
@@ -360,7 +363,6 @@ def handle_video_upload(facial_analyzer):
                     'emotions': demo_emotion_results,
                     'video_path': None
                 }
-                st.session_state.video_upload_processed = True
             finally:
                 st.session_state.video_upload_analyzing = False
                 st.rerun()
@@ -446,6 +448,18 @@ def audio_analysis(audio_detector):
         st.error("❌ Audio analysis not available")
         return
     
+    # Language selection
+    st.subheader("🌐 Language Selection")
+    language_choice = st.radio(
+        "Select speech language:",
+        ["English", "Indonesian"],
+        horizontal=True,
+        key="audio_language"
+    )
+    
+    # Set the selected language in the detector
+    audio_detector.set_language(language_choice.lower())
+    
     # Display analysis options
     st.subheader("📋 Analysis Options")
     
@@ -529,7 +543,7 @@ def handle_audio_recording_states(audio_detector):
                 st.rerun()
 
 def handle_audio_upload(audio_detector):
-    """Handle audio file upload and analysis"""
+    """Handle audio file upload and analysis - FIXED VERSION"""
     uploaded_audio = st.file_uploader(
         "Choose audio file", 
         type=['mp3', 'wav', 'm4a'],
@@ -545,26 +559,28 @@ def handle_audio_upload(audio_detector):
     # Only show analyze button if we have a file that hasn't been processed
     if (st.session_state.uploaded_audio_file and 
         not st.session_state.audio_analyzing and 
-        not st.session_state.audio_upload_analyzing):
+        not st.session_state.audio_upload_analyzing and
+        not st.session_state.audio_upload_processed):
         
         if st.button("🔍 Analyze Uploaded Audio", type="primary", use_container_width=True, key="analyze_uploaded_audio"):
             st.session_state.audio_upload_analyzing = True
             st.session_state.audio_upload_processed = False
             st.rerun()
     
-    # Handle uploaded audio analysis - ONLY when explicitly triggered
+    # Handle uploaded audio analysis - ONLY when explicitly triggered and not already processed
     if (st.session_state.audio_upload_analyzing and 
         st.session_state.uploaded_audio_file and
         not st.session_state.audio_upload_processed):
         
+        # Mark as processing immediately to prevent re-triggering
+        st.session_state.audio_upload_processed = True
+        
         with st.spinner(f"🔄 Analyzing {st.session_state.uploaded_audio_file.name}..."):
             try:
                 st.session_state.audio_results = audio_detector.analyze_uploaded_audio(st.session_state.uploaded_audio_file)
-                st.session_state.audio_upload_processed = True
             except Exception as e:
                 st.error(f"❌ Error analyzing audio: {e}")
                 st.session_state.audio_results = {'error': str(e), 'demo_mode': True}
-                st.session_state.audio_upload_processed = True
             finally:
                 st.session_state.audio_upload_analyzing = False
                 st.rerun()
@@ -651,9 +667,6 @@ def display_audio_tips():
         - Single speaker preferred
         - Minimal background noise
         """)
-
-# ... (keep all the other functions the same: text_analysis, complete_session, display_audio_results, 
-# display_video_results, display_text_results, demo_text_analysis, etc.)
 
 def text_analysis(predictor):
     """Text-based depression analysis"""
@@ -766,6 +779,10 @@ def display_audio_results(results):
     if results.get('transcript'):
         with st.expander("View Speech Transcript"):
             st.write(results['transcript'])
+    
+    # Language info
+    if results.get('selected_language'):
+        st.info(f"🌐 Analysis performed in: {results['selected_language'].title()}")
     
     # Visualization
     st.subheader("Score Distribution")
