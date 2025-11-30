@@ -1,4 +1,4 @@
-# app.py (Fixed version - update the video_analysis function)
+# app.py (Fixed version with proper upload handling)
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -33,7 +33,6 @@ DepressionSeverityPredictor, TEXT_ANALYSIS_AVAILABLE = safe_import('depression_t
 try:
     from audio_depression_detector import AudioDepressionDetector
     AUDIO_ANALYSIS_AVAILABLE = True
-    print("✅ Audio detector imported successfully")
 except ImportError as e:
     st.warning(f"❌ Could not import audio_depression_detector: {e}")
     AUDIO_ANALYSIS_AVAILABLE = False
@@ -72,9 +71,48 @@ def load_audio_detector():
         st.error(f"❌ Error loading audio detector: {e}")
         return None
 
+def initialize_session_state():
+    """Initialize all session state variables"""
+    defaults = {
+        # Video analysis states
+        'video_recording': False,
+        'video_results': None,
+        'video_analyzing': False,
+        'video_recording_started': False,
+        'video_stop_clicked': False,
+        'recording_start_time': None,
+        
+        # Audio analysis states
+        'audio_recording': False,
+        'audio_results': None,
+        'audio_analyzing': False,
+        'audio_recording_started': False,
+        'audio_stop_clicked': False,
+        'audio_upload_analyzing': False,
+        
+        # Video upload states
+        'video_upload_analyzing': False,
+        'video_upload_processed': False,
+        
+        # Upload files
+        'uploaded_video_file': None,
+        'uploaded_audio_file': None,
+        
+        # General states
+        'last_action': None,
+        'action_timestamp': None
+    }
+    
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
 def main():
     st.title("🧠 Therapy Session Helper - Multi-Modal Analysis")
     st.markdown("Comprehensive emotional analysis through video, audio, and text")
+    
+    # Initialize session state
+    initialize_session_state()
     
     # Load models
     text_predictor = load_predictor()
@@ -136,14 +174,6 @@ def video_analysis(facial_analyzer):
         st.error("❌ Video analysis not available")
         return
     
-    # Initialize session state
-    if 'video_recording' not in st.session_state:
-        st.session_state.video_recording = False
-    if 'video_results' not in st.session_state:
-        st.session_state.video_results = None
-    if 'video_analyzing' not in st.session_state:
-        st.session_state.video_analyzing = False
-    
     # Display usage instructions
     st.subheader("📋 How to Use Video Analysis")
     
@@ -168,59 +198,15 @@ def video_analysis(facial_analyzer):
         
         st.subheader("Recording Controls")
         
-        if not st.session_state.video_recording and not st.session_state.video_analyzing:
-            if st.button("🎬 Start Video Recording", type="primary", use_container_width=True):
-                result = facial_analyzer.start_video_recording()
-                if isinstance(result, dict) and result.get('status') == 'recording_started':
-                    st.session_state.video_recording = True
-                    st.session_state.recording_start_time = time.time()
-                    st.success("🔴 Video recording started! A new window will open.")
-                    st.info("💡 **Speak naturally about your current feelings and emotions.**")
-                else:
-                    st.error("❌ Could not start video recording")
-        elif st.session_state.video_recording:
-            if st.button("⏹️ Stop Video Recording", type="secondary", use_container_width=True):
-                st.session_state.video_analyzing = True
-                st.session_state.video_recording = False
-                
-                # Use placeholder for video analysis
-                video_placeholder = st.empty()
-                with video_placeholder.container():
-                    st.info("🔄 Analyzing video recording...")
-                    with st.spinner("Processing video frames and detecting emotions..."):
-                        # Perform analysis directly (no threading)
-                        emotion_results, video_path = facial_analyzer.stop_video_recording()
-                        if emotion_results is not None:
-                            st.session_state.video_results = {
-                                'emotions': emotion_results,
-                                'video_path': video_path
-                            }
-                        else:
-                            # Fallback to demo results
-                            demo_emotion_results = {
-                                'neutral': 45.0, 'happy': 25.0, 'sad': 15.0,
-                                'angry': 5.0, 'surprise': 5.0, 'fear': 3.0, 'disgust': 2.0
-                            }
-                            st.session_state.video_results = {
-                                'emotions': demo_emotion_results,
-                                'video_path': None
-                            }
-                        st.session_state.video_analyzing = False
-                
-                # Clear the placeholder
-                video_placeholder.empty()
-                st.success("✅ Video analysis complete!")
-    
+        # Handle recording state transitions
+        handle_video_recording_states(facial_analyzer)
+        
+        # Display current status
+        display_video_status()
+        
     with col2:
         st.subheader("Status")
-        if st.session_state.video_recording:
-            st.error("🔴 **Recording Active**")
-            st.write("A video window is open. Speak naturally about your feelings.")
-        elif st.session_state.video_analyzing:
-            st.warning("🔄 **Analyzing Video**")
-            st.write("Processing recorded video...")
-        else:
-            st.success("✅ **Ready to Record**")
+        display_video_current_status()
         
         st.subheader("Analysis Output")
         st.markdown("""
@@ -232,106 +218,225 @@ def video_analysis(facial_analyzer):
         
         # Video upload option
         st.subheader("📁 Upload Video")
-        uploaded_video = st.file_uploader("Or upload existing video", 
-                                        type=['mp4', 'avi', 'mov'],
-                                        help="Upload MP4, AVI, or MOV files for analysis",
-                                        key="video_uploader")
-        
-        if uploaded_video and not st.session_state.video_recording and not st.session_state.video_analyzing:
-            if st.button("🎭 Analyze Uploaded Video", use_container_width=True):
-                st.session_state.video_analyzing = True
-                
-                # Use placeholder for upload analysis
-                upload_placeholder = st.empty()
-                with upload_placeholder.container():
-                    st.info(f"🔄 Analyzing {uploaded_video.name}...")
-                    with st.spinner("Processing uploaded video file..."):
-                        try:
-                            emotion_results = facial_analyzer.analyze_uploaded_video(uploaded_video)
-                            st.session_state.video_results = {
-                                'emotions': emotion_results,
-                                'video_path': "uploaded_file"
-                            }
-                        except Exception as e:
-                            st.error(f"❌ Error analyzing video: {e}")
-                            # Fallback to demo
-                            demo_emotion_results = {
-                                'neutral': 45.0, 'happy': 25.0, 'sad': 15.0,
-                                'angry': 5.0, 'surprise': 5.0, 'fear': 3.0, 'disgust': 2.0
-                            }
-                            st.session_state.video_results = {
-                                'emotions': demo_emotion_results,
-                                'video_path': None
-                            }
-                        st.session_state.video_analyzing = False
-                
-                # Clear the placeholder
-                upload_placeholder.empty()
-                st.success("✅ Video upload analysis complete!")
+        handle_video_upload(facial_analyzer)
     
     # Display recording status and instructions
     if st.session_state.video_recording:
-        st.markdown("---")
-        st.subheader("🎥 Live Recording Active")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("""
-            **In the video window:**
-            - Look directly at the camera
-            - Speak naturally about your feelings
-            - Express emotions genuinely
-            - Continue for 30+ seconds
-            """)
-        with col2:
-            st.markdown("""
-            **Current Analysis:**
-            - Real-time face detection
-            - Live emotion tracking
-            - Expression monitoring
-            - Voice recording (if available)
-            """)
-        
-        # Recording timer
-        recording_time = time.time() - st.session_state.recording_start_time
-        mins, secs = divmod(int(recording_time), 60)
-        st.metric("Recording Duration", f"{mins:02d}:{secs:02d}")
+        display_recording_interface()
     
     # Display results if available
     if st.session_state.video_results and not st.session_state.video_analyzing:
-        st.markdown("---")
-        display_video_results(
-            st.session_state.video_results['emotions'],
-            "Facial Expression Analysis"
-        )
-        
-        # Additional insights based on results
-        emotions = st.session_state.video_results['emotions']
-        st.subheader("🧠 Emotional Insights")
-        
-        if emotions.get('sad', 0) > 25:
-            st.warning("**Elevated Sadness**: Higher than typical sadness levels detected in facial expressions")
-        elif emotions.get('sad', 0) > 15:
-            st.info("**Moderate Sadness**: Some sadness indicators present")
-        
-        if emotions.get('happy', 0) > 40:
-            st.success("**Positive Expression**: Strong positive emotional expressions detected")
-        elif emotions.get('happy', 0) > 25:
-            st.info("**Balanced Expression**: Good mix of positive expressions")
-        
-        if emotions.get('neutral', 0) > 70:
-            st.info("**Neutral Dominance**: Predominantly neutral emotional expressions")
-        
-        if emotions.get('fear', 0) > 10 or emotions.get('angry', 0) > 10:
-            st.warning("**Elevated Negative Emotions**: Increased fear or anger expressions detected")
-        
-        # Add a button to clear results and start over
-        if st.button("🔄 New Video Analysis", type="secondary"):
-            st.session_state.video_results = None
-            st.session_state.video_recording = False
-            st.session_state.video_analyzing = False
+        display_video_final_results()
 
-# ... (keep all the other functions the same: audio_analysis, text_analysis, display_audio_results, display_text_results, etc.)
+def handle_video_recording_states(facial_analyzer):
+    """Handle video recording state transitions"""
+    # Start Recording
+    if not st.session_state.video_recording and not st.session_state.video_analyzing:
+        if st.button("🎬 Start Video Recording", type="primary", use_container_width=True, key="start_video_recording"):
+            try:
+                result = facial_analyzer.start_video_recording()
+                if isinstance(result, dict) and result.get('status') == 'recording_started':
+                    st.session_state.video_recording = True
+                    st.session_state.recording_start_time = time.time()
+                    st.session_state.video_recording_started = True
+                    st.session_state.last_action = "start_recording"
+                    st.session_state.action_timestamp = time.time()
+                    st.rerun()
+                else:
+                    st.error("❌ Could not start video recording")
+            except Exception as e:
+                st.error(f"❌ Error starting recording: {e}")
+    
+    # Stop Recording
+    elif st.session_state.video_recording and not st.session_state.video_analyzing:
+        if st.button("⏹️ Stop Video Recording", type="secondary", use_container_width=True, key="stop_video_recording"):
+            st.session_state.video_recording = False
+            st.session_state.video_analyzing = True
+            st.session_state.video_stop_clicked = True
+            st.session_state.last_action = "stop_recording"
+            st.session_state.action_timestamp = time.time()
+            st.rerun()
+    
+    # Handle analysis after stop
+    if st.session_state.video_stop_clicked and st.session_state.video_analyzing:
+        st.session_state.video_stop_clicked = False
+        
+        with st.spinner("🔄 Processing video frames and detecting emotions..."):
+            try:
+                emotion_results, video_path = facial_analyzer.stop_video_recording()
+                if emotion_results is not None:
+                    st.session_state.video_results = {
+                        'emotions': emotion_results,
+                        'video_path': video_path
+                    }
+                else:
+                    # Fallback to demo results
+                    demo_emotion_results = {
+                        'neutral': 45.0, 'happy': 25.0, 'sad': 15.0,
+                        'angry': 5.0, 'surprise': 5.0, 'fear': 3.0, 'disgust': 2.0
+                    }
+                    st.session_state.video_results = {
+                        'emotions': demo_emotion_results,
+                        'video_path': None
+                    }
+            except Exception as e:
+                st.error(f"❌ Error during video analysis: {e}")
+                demo_emotion_results = {
+                    'neutral': 45.0, 'happy': 25.0, 'sad': 15.0,
+                    'angry': 5.0, 'surprise': 5.0, 'fear': 3.0, 'disgust': 2.0
+                }
+                st.session_state.video_results = {
+                    'emotions': demo_emotion_results,
+                    'video_path': None
+                }
+            finally:
+                st.session_state.video_analyzing = False
+                st.rerun()
+
+def display_video_status():
+    """Display current video recording status"""
+    if st.session_state.video_recording:
+        st.info("🔴 **Recording in progress** - Speak naturally about your feelings")
+    elif st.session_state.video_analyzing:
+        st.warning("🔄 **Analyzing video** - Please wait...")
+    else:
+        st.success("✅ **Ready to record**")
+
+def display_video_current_status():
+    """Display current status in the right column"""
+    if st.session_state.video_recording:
+        st.error("🔴 **Recording Active**")
+        st.write("A video window is open. Speak naturally about your feelings.")
+    elif st.session_state.video_analyzing:
+        st.warning("🔄 **Analyzing Video**")
+        st.write("Processing recorded video...")
+    else:
+        st.success("✅ **Ready to Record**")
+
+def handle_video_upload(facial_analyzer):
+    """Handle video file upload and analysis"""
+    uploaded_video = st.file_uploader("Or upload existing video", 
+                                    type=['mp4', 'avi', 'mov'],
+                                    help="Upload MP4, AVI, or MOV files for analysis",
+                                    key="video_uploader")
+    
+    # Store uploaded file in session state
+    if uploaded_video and uploaded_video != st.session_state.get('uploaded_video_file'):
+        st.session_state.uploaded_video_file = uploaded_video
+        st.session_state.video_upload_processed = False
+    
+    # Only show analyze button if we have a file that hasn't been processed
+    if (st.session_state.uploaded_video_file and 
+        not st.session_state.video_analyzing and 
+        not st.session_state.video_upload_analyzing and
+        not st.session_state.video_upload_processed):
+        
+        if st.button("🎭 Analyze Uploaded Video", use_container_width=True, key="analyze_uploaded_video"):
+            st.session_state.video_upload_analyzing = True
+            st.session_state.video_upload_processed = False
+            st.rerun()
+    
+    # Handle uploaded video analysis - ONLY when explicitly triggered
+    if (st.session_state.video_upload_analyzing and 
+        st.session_state.uploaded_video_file and
+        not st.session_state.video_upload_processed):
+        
+        with st.spinner(f"🔄 Analyzing {st.session_state.uploaded_video_file.name}..."):
+            try:
+                emotion_results = facial_analyzer.analyze_uploaded_video(st.session_state.uploaded_video_file)
+                st.session_state.video_results = {
+                    'emotions': emotion_results,
+                    'video_path': "uploaded_file"
+                }
+                st.session_state.video_upload_processed = True
+            except Exception as e:
+                st.error(f"❌ Error analyzing video: {e}")
+                # Fallback to demo
+                demo_emotion_results = {
+                    'neutral': 45.0, 'happy': 25.0, 'sad': 15.0,
+                    'angry': 5.0, 'surprise': 5.0, 'fear': 3.0, 'disgust': 2.0
+                }
+                st.session_state.video_results = {
+                    'emotions': demo_emotion_results,
+                    'video_path': None
+                }
+                st.session_state.video_upload_processed = True
+            finally:
+                st.session_state.video_upload_analyzing = False
+                st.rerun()
+
+def display_recording_interface():
+    """Display recording interface when recording is active"""
+    st.markdown("---")
+    st.subheader("🎥 Live Recording Active")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("""
+        **In the video window:**
+        - Look directly at the camera
+        - Speak naturally about your feelings
+        - Express emotions genuinely
+        - Continue for 30+ seconds
+        """)
+    with col2:
+        st.markdown("""
+        **Current Analysis:**
+        - Real-time face detection
+        - Live emotion tracking
+        - Expression monitoring
+        - Voice recording (if available)
+        """)
+    
+    # Recording timer
+    if st.session_state.recording_start_time:
+        recording_time = time.time() - st.session_state.recording_start_time
+        mins, secs = divmod(int(recording_time), 60)
+        st.metric("Recording Duration", f"{mins:02d}:{secs:02d}")
+
+def display_video_final_results():
+    """Display final video analysis results"""
+    st.markdown("---")
+    display_video_results(
+        st.session_state.video_results['emotions'],
+        "Facial Expression Analysis"
+    )
+    
+    # Additional insights based on results
+    emotions = st.session_state.video_results['emotions']
+    st.subheader("🧠 Emotional Insights")
+    
+    if emotions.get('sad', 0) > 25:
+        st.warning("**Elevated Sadness**: Higher than typical sadness levels detected in facial expressions")
+    elif emotions.get('sad', 0) > 15:
+        st.info("**Moderate Sadness**: Some sadness indicators present")
+    
+    if emotions.get('happy', 0) > 40:
+        st.success("**Positive Expression**: Strong positive emotional expressions detected")
+    elif emotions.get('happy', 0) > 25:
+        st.info("**Balanced Expression**: Good mix of positive expressions")
+    
+    if emotions.get('neutral', 0) > 70:
+        st.info("**Neutral Dominance**: Predominantly neutral emotional expressions")
+    
+    if emotions.get('fear', 0) > 10 or emotions.get('angry', 0) > 10:
+        st.warning("**Elevated Negative Emotions**: Increased fear or anger expressions detected")
+    
+    # Add a button to clear results and start over
+    if st.button("🔄 New Video Analysis", type="secondary", key="new_video_analysis"):
+        reset_video_state()
+        st.rerun()
+
+def reset_video_state():
+    """Reset all video-related session states"""
+    st.session_state.video_results = None
+    st.session_state.video_recording = False
+    st.session_state.video_analyzing = False
+    st.session_state.video_upload_analyzing = False
+    st.session_state.video_recording_started = False
+    st.session_state.video_stop_clicked = False
+    st.session_state.video_upload_processed = False
+    st.session_state.uploaded_video_file = None
 
 def audio_analysis(audio_detector):
     """Audio-based depression analysis with manual recording and file upload"""
@@ -340,14 +445,6 @@ def audio_analysis(audio_detector):
     if audio_detector is None:
         st.error("❌ Audio analysis not available")
         return
-    
-    # Initialize session state for recording status
-    if 'audio_recording' not in st.session_state:
-        st.session_state.audio_recording = False
-    if 'audio_results' not in st.session_state:
-        st.session_state.audio_results = None
-    if 'audio_analyzing' not in st.session_state:
-        st.session_state.audio_analyzing = False
     
     # Display analysis options
     st.subheader("📋 Analysis Options")
@@ -363,33 +460,7 @@ def audio_analysis(audio_detector):
         """)
         
         st.subheader("Recording Controls")
-        
-        if not st.session_state.audio_recording and not st.session_state.audio_analyzing:
-            if st.button("🎙️ Start Recording", type="primary", use_container_width=True):
-                result = audio_detector.start_recording()
-                if "started" in result:
-                    st.session_state.audio_recording = True
-                    st.session_state.recording_start_time = time.time()
-                    st.success("🔴 Recording started... Speak now!")
-                else:
-                    st.error("❌ Could not start recording")
-        elif st.session_state.audio_recording:
-            if st.button("⏹️ Stop Recording", type="secondary", use_container_width=True):
-                st.session_state.audio_analyzing = True
-                st.session_state.audio_recording = False
-                
-                # Use a placeholder to show analysis progress
-                analysis_placeholder = st.empty()
-                with analysis_placeholder.container():
-                    st.info("🔄 Analyzing audio... This may take a moment.")
-                    with st.spinner("Processing audio features and speech..."):
-                        # Perform analysis directly (no threading)
-                        st.session_state.audio_results = audio_detector.stop_recording()
-                        st.session_state.audio_analyzing = False
-                
-                # Clear the analysis placeholder
-                analysis_placeholder.empty()
-                st.success("✅ Analysis complete!")
+        handle_audio_recording_states(audio_detector)
     
     with col2:
         st.markdown("""
@@ -400,31 +471,106 @@ def audio_analysis(audio_detector):
         """)
         
         st.subheader("File Upload")
-        uploaded_audio = st.file_uploader(
-            "Choose MP3 file", 
-            type=['mp3', 'wav', 'm4a'],
-            help="Upload MP3, WAV, or M4A files for analysis",
-            key="audio_uploader"
-        )
-        
-        if uploaded_audio and not st.session_state.audio_recording and not st.session_state.audio_analyzing:
-            if st.button("🔍 Analyze Uploaded Audio", type="primary", use_container_width=True):
-                st.session_state.audio_analyzing = True
-                
-                # Use placeholder for upload analysis
-                upload_placeholder = st.empty()
-                with upload_placeholder.container():
-                    st.info(f"🔄 Analyzing {uploaded_audio.name}...")
-                    with st.spinner("Processing uploaded audio file..."):
-                        # Perform analysis directly (no threading)
-                        st.session_state.audio_results = audio_detector.analyze_uploaded_audio(uploaded_audio)
-                        st.session_state.audio_analyzing = False
-                
-                # Clear the upload placeholder
-                upload_placeholder.empty()
-                st.success("✅ Upload analysis complete!")
+        handle_audio_upload(audio_detector)
     
     # Display current status
+    display_audio_current_status()
+    
+    # Display recording timer
+    if st.session_state.audio_recording and st.session_state.recording_start_time:
+        display_audio_recording_timer()
+    
+    # Display results if available
+    if st.session_state.audio_results and not st.session_state.audio_analyzing:
+        display_audio_final_results()
+    
+    # Display usage tips when idle
+    if (not st.session_state.audio_recording and 
+        not st.session_state.audio_analyzing and 
+        not st.session_state.audio_results):
+        display_audio_tips()
+
+def handle_audio_recording_states(audio_detector):
+    """Handle audio recording state transitions"""
+    # Start Recording
+    if not st.session_state.audio_recording and not st.session_state.audio_analyzing:
+        if st.button("🎙️ Start Recording", type="primary", use_container_width=True, key="start_audio_recording"):
+            result = audio_detector.start_recording()
+            if "started" in result:
+                st.session_state.audio_recording = True
+                st.session_state.recording_start_time = time.time()
+                st.session_state.audio_recording_started = True
+                st.session_state.last_action = "start_audio_recording"
+                st.rerun()
+            else:
+                st.error("❌ Could not start recording")
+    
+    # Stop Recording
+    elif st.session_state.audio_recording and not st.session_state.audio_analyzing:
+        if st.button("⏹️ Stop Recording", type="secondary", use_container_width=True, key="stop_audio_recording"):
+            st.session_state.audio_recording = False
+            st.session_state.audio_analyzing = True
+            st.session_state.audio_stop_clicked = True
+            st.session_state.last_action = "stop_audio_recording"
+            st.rerun()
+    
+    # Handle analysis after stop
+    if st.session_state.audio_stop_clicked and st.session_state.audio_analyzing:
+        st.session_state.audio_stop_clicked = False
+        
+        with st.spinner("🔄 Analyzing audio... This may take a moment."):
+            try:
+                st.session_state.audio_results = audio_detector.stop_recording()
+            except Exception as e:
+                st.error(f"❌ Error during audio analysis: {e}")
+                st.session_state.audio_results = {'error': str(e), 'demo_mode': True}
+            finally:
+                st.session_state.audio_analyzing = False
+                st.rerun()
+
+def handle_audio_upload(audio_detector):
+    """Handle audio file upload and analysis"""
+    uploaded_audio = st.file_uploader(
+        "Choose audio file", 
+        type=['mp3', 'wav', 'm4a'],
+        help="Upload MP3, WAV, or M4A files for analysis",
+        key="audio_uploader"
+    )
+    
+    # Store uploaded file in session state
+    if uploaded_audio and uploaded_audio != st.session_state.get('uploaded_audio_file'):
+        st.session_state.uploaded_audio_file = uploaded_audio
+        st.session_state.audio_upload_processed = False
+    
+    # Only show analyze button if we have a file that hasn't been processed
+    if (st.session_state.uploaded_audio_file and 
+        not st.session_state.audio_analyzing and 
+        not st.session_state.audio_upload_analyzing):
+        
+        if st.button("🔍 Analyze Uploaded Audio", type="primary", use_container_width=True, key="analyze_uploaded_audio"):
+            st.session_state.audio_upload_analyzing = True
+            st.session_state.audio_upload_processed = False
+            st.rerun()
+    
+    # Handle uploaded audio analysis - ONLY when explicitly triggered
+    if (st.session_state.audio_upload_analyzing and 
+        st.session_state.uploaded_audio_file and
+        not st.session_state.audio_upload_processed):
+        
+        with st.spinner(f"🔄 Analyzing {st.session_state.uploaded_audio_file.name}..."):
+            try:
+                st.session_state.audio_results = audio_detector.analyze_uploaded_audio(st.session_state.uploaded_audio_file)
+                st.session_state.audio_upload_processed = True
+            except Exception as e:
+                st.error(f"❌ Error analyzing audio: {e}")
+                st.session_state.audio_results = {'error': str(e), 'demo_mode': True}
+                st.session_state.audio_upload_processed = True
+            finally:
+                st.session_state.audio_upload_analyzing = False
+                st.rerun()
+
+def display_audio_current_status():
+    """Display current audio analysis status"""
     st.markdown("---")
     col1, col2 = st.columns(2)
     
@@ -432,72 +578,82 @@ def audio_analysis(audio_detector):
         if st.session_state.audio_recording:
             st.warning("🔴 **Currently Recording**")
             st.info("Speak naturally about your feelings. Click 'Stop Recording' when finished.")
-        elif st.session_state.audio_analyzing:
+        elif st.session_state.audio_analyzing or st.session_state.audio_upload_analyzing:
             st.warning("🔄 **Analyzing Audio**")
             st.info("Please wait while we analyze your audio...")
         else:
             st.success("✅ **Ready**")
     
     with col2:
-        if uploaded_audio and not st.session_state.audio_recording and not st.session_state.audio_analyzing:
-            st.info(f"📁 **File Ready**: {uploaded_audio.name}")
-            st.write("Click 'Analyze Uploaded Audio' to process")
+        if st.session_state.uploaded_audio_file:
+            st.info(f"📁 **File Ready**: {st.session_state.uploaded_audio_file.name}")
+
+def display_audio_recording_timer():
+    """Display audio recording timer"""
+    st.markdown("---")
+    st.subheader("🎙️ Recording in Progress...")
     
-    # Display recording timer
-    if st.session_state.audio_recording:
-        st.markdown("---")
-        st.subheader("🎙️ Recording in Progress...")
-        
-        recording_time = time.time() - st.session_state.recording_start_time
-        mins, secs = divmod(int(recording_time), 60)
-        st.metric("Recording Time", f"{mins:02d}:{secs:02d}")
-        
-        # Show recording tips
-        st.info("💡 **Tip**: Speak for at least 30 seconds for best results. Describe your feelings naturally.")
+    recording_time = time.time() - st.session_state.recording_start_time
+    mins, secs = divmod(int(recording_time), 60)
+    st.metric("Recording Time", f"{mins:02d}:{secs:02d}")
     
-    # Display results if available
-    if st.session_state.audio_results and not st.session_state.audio_analyzing:
-        st.markdown("---")
-        display_audio_results(st.session_state.audio_results)
-        
-        # Add a button to clear results and start over
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("🔄 New Analysis", type="secondary", use_container_width=True):
-                st.session_state.audio_results = None
-                st.session_state.audio_recording = False
-                st.session_state.audio_analyzing = False
-        with col2:
-            if st.button("📊 Show Detailed Analysis", use_container_width=True):
-                st.info("Detailed analysis features coming soon!")
+    # Show recording tips
+    st.info("💡 **Tip**: Speak for at least 30 seconds for best results. Describe your feelings naturally.")
+
+def display_audio_final_results():
+    """Display final audio analysis results"""
+    st.markdown("---")
+    display_audio_results(st.session_state.audio_results)
     
-    # Display usage tips when idle
-    if (not st.session_state.audio_recording and 
-        not st.session_state.audio_analyzing and 
-        not st.session_state.audio_results):
-        st.markdown("---")
-        st.subheader("💡 Tips for Best Results")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("""
-            **For Live Recording:**
-            - Speak clearly and naturally
-            - Record in a quiet environment
-            - Speak for 1-3 minutes
-            - Express genuine emotions
-            - Use normal speaking volume
-            """)
-        
-        with col2:
-            st.markdown("""
-            **For File Upload:**
-            - MP3 format recommended
-            - Clear audio quality
-            - Minimum 30 seconds duration
-            - Single speaker preferred
-            - Minimal background noise
-            """)
+    # Add a button to clear results and start over
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🔄 New Analysis", type="secondary", use_container_width=True, key="new_audio_analysis"):
+            reset_audio_state()
+            st.rerun()
+    with col2:
+        if st.button("📊 Show Detailed Analysis", use_container_width=True, key="detailed_audio_analysis"):
+            st.info("Detailed analysis features coming soon!")
+
+def reset_audio_state():
+    """Reset all audio-related session states"""
+    st.session_state.audio_results = None
+    st.session_state.audio_recording = False
+    st.session_state.audio_analyzing = False
+    st.session_state.audio_upload_analyzing = False
+    st.session_state.audio_recording_started = False
+    st.session_state.audio_stop_clicked = False
+    st.session_state.audio_upload_processed = False
+    st.session_state.uploaded_audio_file = None
+
+def display_audio_tips():
+    """Display audio analysis tips"""
+    st.markdown("---")
+    st.subheader("💡 Tips for Best Results")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("""
+        **For Live Recording:**
+        - Speak clearly and naturally
+        - Record in a quiet environment
+        - Speak for 1-3 minutes
+        - Express genuine emotions
+        - Use normal speaking volume
+        """)
+    
+    with col2:
+        st.markdown("""
+        **For File Upload:**
+        - MP3 format recommended
+        - Clear audio quality
+        - Minimum 30 seconds duration
+        - Single speaker preferred
+        - Minimal background noise
+        """)
+
+# ... (keep all the other functions the same: text_analysis, complete_session, display_audio_results, 
+# display_video_results, display_text_results, demo_text_analysis, etc.)
 
 def text_analysis(predictor):
     """Text-based depression analysis"""
@@ -511,10 +667,11 @@ def text_analysis(predictor):
     text_input = st.text_area(
         "Enter text to analyze:",
         height=150,
-        placeholder="Describe how you're feeling or paste text to analyze..."
+        placeholder="Describe how you're feeling or paste text to analyze...",
+        key="text_input"
     )
     
-    if st.button("Analyze Text", type="primary") and text_input:
+    if st.button("Analyze Text", type="primary", key="analyze_text") and text_input:
         with st.spinner("Analyzing text content..."):
             try:
                 # Use the available method
@@ -733,10 +890,11 @@ def demo_text_analysis():
     text_input = st.text_area(
         "Enter text (demo mode):",
         height=150,
-        placeholder="Describe your feelings..."
+        placeholder="Describe your feelings...",
+        key="demo_text_input"
     )
     
-    if st.button("Show Demo Analysis") and text_input:
+    if st.button("Show Demo Analysis", key="demo_analyze_text") and text_input:
         demo_text_analysis_with_input(text_input)
 
 def demo_text_analysis_with_input(text_input):
