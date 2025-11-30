@@ -1,4 +1,4 @@
-# audio_depression_detector.py
+# audio_depression_detector.py (CLEANED VERSION)
 import numpy as np
 import tempfile
 import os
@@ -10,7 +10,6 @@ import wave
 import librosa
 import speech_recognition as sr
 from pydub import AudioSegment
-import io
 
 class AudioDepressionDetector:
     def __init__(self):
@@ -119,10 +118,10 @@ class AudioDepressionDetector:
                 
             except Exception as e:
                 print(f"❌ Error saving audio: {e}")
-                return self.analyze_audio_demo()  # Fallback to demo
+                return self._create_error_result(f"Error saving audio: {e}")
         else:
             print("❌ No audio frames recorded")
-            return self.analyze_audio_demo()  # Fallback to demo
+            return self._create_error_result("No audio recorded")
     
     def analyze_uploaded_audio(self, audio_file):
         """Analyze uploaded audio file (MP3, WAV, etc.)"""
@@ -147,7 +146,7 @@ class AudioDepressionDetector:
             
         except Exception as e:
             print(f"❌ Error analyzing uploaded audio: {e}")
-            return self.analyze_audio_demo()
+            return self._create_error_result(f"Upload analysis error: {e}")
     
     def analyze_audio(self, audio_path):
         """Analyze actual audio file"""
@@ -186,18 +185,13 @@ class AudioDepressionDetector:
                 'text_analysis': text_analysis,
                 'acoustic_insights': self.generate_acoustic_insights(acoustic_features),
                 'semantic_insights': self.generate_semantic_insights(text_analysis),
-                'demo_mode': False,
                 'analysis_timestamp': datetime.now().isoformat(),
                 'audio_duration': self.get_audio_duration(audio_path)
             }
             
         except Exception as e:
             print(f"❌ Audio analysis error: {e}")
-            # Fallback to demo with error info
-            result = self.analyze_audio_demo()
-            result['error'] = str(e)
-            result['demo_mode'] = True
-            return result
+            return self._create_error_result(f"Analysis error: {e}")
     
     def extract_real_acoustic_features(self, audio_path):
         """Extract real acoustic features using librosa"""
@@ -239,7 +233,11 @@ class AudioDepressionDetector:
             
         except Exception as e:
             print(f"❌ Error extracting real acoustic features: {e}")
-            return self.extract_acoustic_features()  # Fallback to demo features
+            # Return default features instead of demo
+            return {
+                'rms_energy': 0.05, 'spectral_centroid': 1800, 'zero_crossing_rate': 0.08,
+                'pitch_mean': 130, 'pitch_std': 25, 'speaking_rate': 1.0, 'voice_breaks': 0.1
+            }
     
     def speech_to_text(self, audio_path):
         """Convert speech to text using speech recognition"""
@@ -259,7 +257,7 @@ class AudioDepressionDetector:
             return f"Error with speech recognition service: {e}"
         except Exception as e:
             print(f"❌ Speech-to-text error: {e}")
-            return self.speech_to_text_demo()  # Fallback to demo
+            return "Speech recognition unavailable"
     
     def get_audio_duration(self, audio_path):
         """Get duration of audio file in seconds"""
@@ -278,97 +276,8 @@ class AudioDepressionDetector:
         if hasattr(self, 'audio'):
             self.audio.terminate()
     
-    # Keep the demo methods as fallbacks
-    def extract_acoustic_features(self, audio_path=None):
-        """Extract acoustic features from audio - demo version (fallback)"""
-        # ... (keep the existing demo implementation)
-        try:
-            # For demo purposes, return simulated acoustic features
-            emotional_states = [
-                {
-                    'rms_energy': 0.008, 'spectral_centroid': 1200, 'zero_crossing_rate': 0.06,
-                    'pitch_mean': 110, 'pitch_std': 8, 'speaking_rate': 0.8, 'voice_breaks': 0.3
-                },
-                {
-                    'rms_energy': 0.05, 'spectral_centroid': 1800, 'zero_crossing_rate': 0.08,
-                    'pitch_mean': 130, 'pitch_std': 25, 'speaking_rate': 1.0, 'voice_breaks': 0.1
-                },
-                {
-                    'rms_energy': 0.12, 'spectral_centroid': 2200, 'zero_crossing_rate': 0.15,
-                    'pitch_mean': 150, 'pitch_std': 40, 'speaking_rate': 1.4, 'voice_breaks': 0.2
-                }
-            ]
-            
-            import random
-            features = random.choice(emotional_states)
-            
-            for key in features:
-                if isinstance(features[key], float):
-                    features[key] *= random.uniform(0.8, 1.2)
-            
-            return features
-            
-        except Exception as e:
-            print(f"❌ Error extracting acoustic features: {e}")
-            return {
-                'rms_energy': 0.05, 'spectral_centroid': 1800, 'zero_crossing_rate': 0.08,
-                'pitch_mean': 130, 'pitch_std': 25, 'speaking_rate': 1.0, 'voice_breaks': 0.1
-            }
-    
-    def speech_to_text_demo(self):
-        """Generate demo speech transcripts (fallback)"""
-        # ... (keep the existing demo implementation)
-        demo_transcripts = [
-            "I've been feeling really down lately. Nothing seems to bring me joy anymore and I'm just going through the motions.",
-            "I've been so worried about everything lately. My mind is constantly racing and I can't seem to relax.",
-            "I've been a bit stressed with work and everything, but I'm managing. Some days are better than others.",
-            "I've been feeling pretty good recently. I've been exercising and spending time with friends.",
-            "It's been ups and downs. Some days I feel okay, other days it's a struggle."
-        ]
-        
-        import random
-        return random.choice(demo_transcripts)
-    
-    def analyze_audio_demo(self):
-        """Provide complete demo audio analysis (fallback)"""
-        # ... (keep the existing demo implementation)
-        try:
-            acoustic_features = self.extract_acoustic_features()
-            acoustic_score = self.acoustic_depression_score(acoustic_features)
-            transcript = self.speech_to_text_demo()
-            semantic_score, text_analysis = self.semantic_depression_score(transcript)
-            
-            final_phq_score = (acoustic_score + semantic_score) / 2
-            depression_percentage = (final_phq_score / 27) * 100
-            
-            return {
-                'depression_percentage': depression_percentage,
-                'phq_score': final_phq_score,
-                'acoustic_score': acoustic_score,
-                'semantic_score': semantic_score,
-                'transcript': transcript,
-                'acoustic_features': acoustic_features,
-                'text_analysis': text_analysis,
-                'acoustic_insights': self.generate_acoustic_insights(acoustic_features),
-                'semantic_insights': self.generate_semantic_insights(text_analysis),
-                'demo_mode': True,
-                'analysis_timestamp': datetime.now().isoformat()
-            }
-            
-        except Exception as e:
-            return {
-                'depression_percentage': 35.2, 'phq_score': 9.5, 'acoustic_score': 8, 'semantic_score': 11,
-                'transcript': "I've been feeling a bit stressed lately but I'm managing okay.",
-                'acoustic_features': {}, 'text_analysis': {'severity': 'mild'},
-                'acoustic_insights': ["Demo analysis - normal speech patterns"],
-                'semantic_insights': ["Demo analysis - mild distress indicators"],
-                'demo_mode': True, 'error': str(e)
-            }
-    
-    # Keep all other existing methods (acoustic_depression_score, semantic_depression_score, etc.)
     def acoustic_depression_score(self, acoustic_features):
         """Calculate depression score from acoustic features"""
-        # ... (keep the existing implementation)
         try:
             score = 0
             
@@ -404,7 +313,6 @@ class AudioDepressionDetector:
     
     def semantic_depression_score(self, text):
         """Calculate depression score from text content"""
-        # ... (keep the existing implementation)
         try:
             if self.text_analyzer:
                 if hasattr(self.text_analyzer, 'predict_severity'):
@@ -459,7 +367,6 @@ class AudioDepressionDetector:
     
     def generate_acoustic_insights(self, features):
         """Generate insights from acoustic features"""
-        # ... (keep the existing implementation)
         insights = []
         
         energy = features.get('rms_energy', 0.05)
@@ -485,7 +392,6 @@ class AudioDepressionDetector:
     
     def generate_semantic_insights(self, text_analysis):
         """Generate insights from text analysis"""
-        # ... (keep the existing implementation)
         insights = []
         severity = text_analysis.get('severity', 'unknown')
         
@@ -506,3 +412,20 @@ class AudioDepressionDetector:
             insights.append("Analysis limited due to technical constraints")
         
         return insights
+    
+    def _create_error_result(self, error_message):
+        """Create consistent error result format"""
+        return {
+            'depression_percentage': 0,
+            'phq_score': 0,
+            'acoustic_score': 0,
+            'semantic_score': 0,
+            'transcript': "Analysis failed",
+            'acoustic_features': {},
+            'text_analysis': {'severity': 'error'},
+            'acoustic_insights': [f"Analysis error: {error_message}"],
+            'semantic_insights': ["Could not analyze speech content"],
+            'analysis_timestamp': datetime.now().isoformat(),
+            'audio_duration': 0,
+            'error': error_message
+        }
