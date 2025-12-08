@@ -234,53 +234,66 @@ def show_main_dashboard():
     
     # Feature cards
     st.subheader("🎯 Available Analysis Methods")
-    
+
     col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #1a1a1a 0%, #1a2a1a 100%); border: 1px solid #00cc6a; border-radius: 12px; padding: 2rem; height: 100%; transition: all 0.3s ease;">
-        <h4 style="color: #00ff88; margin-bottom: 1rem;">📝 Text Analysis</h4>
-        <p style="color: #b0b0b0; margin-bottom: 1rem;">Analyze written emotional content using advanced NLP models to detect depression patterns in text.</p>
-        <small style="color: #b0b0b0;"><strong>Best for:</strong> Journal entries, written thoughts</small>
+
+    # Define a common style for all cards
+    card_style = """
+        <div style="background: linear-gradient(135deg, #1a1a1a 0%, #1a2a1a 100%); 
+                    border: 1px solid #00cc6a; 
+                    border-radius: 12px; 
+                    padding: 2rem; 
+                    height: 330px;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                    transition: all 0.3s ease;">
+            <div>
+                <h4 style="color: #00ff88; margin-bottom: 1rem;">{title}</h4>
+                <p style="color: #b0b0b0; margin-bottom: 1rem;">{description}</p>
+            </div>
+            <div>
+                <small style="color: #b0b0b0;"><strong>Best for:</strong> {best_for}</small>
+            </div>
         </div>
-        """, unsafe_allow_html=True)
+    """
+
+    with col1:
+        st.markdown(card_style.format(
+            title="📝 Text Analysis",
+            description="Analyze written emotional content using advanced NLP models to detect depression patterns in text.",
+            best_for="Journal entries, written thoughts"
+        ), unsafe_allow_html=True)
         if st.button("Go to Text Analysis", key="nav_text", use_container_width=True):
             st.session_state.current_page = "text"
             st.rerun()
-    
+
     with col2:
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #1a1a1a 0%, #1a2a1a 100%); border: 1px solid #00cc6a; border-radius: 12px; padding: 2rem; height: 100%; transition: all 0.3s ease;">
-        <h4 style="color: #00ff88; margin-bottom: 1rem;">🎥 Video Analysis</h4>
-        <p style="color: #b0b0b0; margin-bottom: 1rem;">Facial expression analysis using computer vision to detect emotional states from video recordings.</p>
-        <small style="color: #b0b0b0;"><strong>Best for:</strong> Facial emotion tracking</small>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(card_style.format(
+            title="🎥 Video Analysis",
+            description="Facial expression analysis using computer vision to detect emotional states from video recordings.",
+            best_for="Facial emotion tracking"
+        ), unsafe_allow_html=True)
         if st.button("Go to Video Analysis", key="nav_video", use_container_width=True):
             st.session_state.current_page = "video"
             st.rerun()
-    
+
     with col3:
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #1a1a1a 0%, #1a2a1a 100%); border: 1px solid #00cc6a; border-radius: 12px; padding: 2rem; height: 100%; transition: all 0.3s ease;">
-        <h4 style="color: #00ff88; margin-bottom: 1rem;">🎵 Audio Analysis</h4>
-        <p style="color: #b0b0b0; margin-bottom: 1rem;">Voice pattern analysis detecting depression indicators through acoustic features and speech content.</p>
-        <small style="color: #b0b0b0;"><strong>Best for:</strong> Voice recordings, speech patterns</small>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(card_style.format(
+            title="🎵 Audio Analysis",
+            description="Voice pattern analysis detecting depression indicators through acoustic features and speech content.",
+            best_for="Voice recordings, speech patterns"
+        ), unsafe_allow_html=True)
         if st.button("Go to Audio Analysis", key="nav_audio", use_container_width=True):
             st.session_state.current_page = "audio"
             st.rerun()
-    
+
     with col4:
-        st.markdown("""
-        <div style="background: linear-gradient(135deg, #1a1a1a 0%, #1a2a1a 100%); border: 1px solid #00cc6a; border-radius: 12px; padding: 2rem; height: 100%; transition: all 0.3s ease;">
-        <h4 style="color: #00ff88; margin-bottom: 1rem;">💬 Complete Session</h4>
-        <p style="color: #b0b0b0; margin-bottom: 1rem;">Comprehensive multi-modal analysis combining video, audio, and contextual data for holistic assessment.</p>
-        <small style="color: #b0b0b0;"><strong>Best for:</strong> Complete emotional assessment</small>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(card_style.format(
+            title="💬 Complete Session",
+            description="Comprehensive multi-modal analysis combining video, audio, and contextual data for holistic assessment.",
+            best_for="Complete emotional assessment"
+        ), unsafe_allow_html=True)
         if st.button("Go to Complete Session", key="nav_complete", use_container_width=True):
             st.session_state.current_page = "complete"
             st.rerun()
