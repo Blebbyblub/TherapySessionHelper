@@ -153,13 +153,7 @@ def main():
     
     # Sidebar navigation
     with st.sidebar:
-        st.markdown("""
-        <style>
-        .sidebar .sidebar-content {
-            background-color: #1a1a1a;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+        st.markdown('<div class="sidebar-scroll">', unsafe_allow_html=True)
         
         st.header("🧠 Therapy Session Helper")
         st.markdown("---")
@@ -195,7 +189,10 @@ def main():
             st.markdown("🎥" if facial_analyzer else "❌")
         with col3:
             st.markdown("🎵" if audio_detector else "❌")
-    
+        
+        # Close the sidebar scroll wrapper
+        st.markdown('</div>', unsafe_allow_html=True)
+
     # Page routing
     if st.session_state.current_page == "main":
         show_main_dashboard()
