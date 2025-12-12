@@ -114,11 +114,10 @@ Open the displayed URL (usually http://localhost:8501).
 ### **🎥 Video Analysis**
 
 1. Select **Video Analysis**
-2. Choose a therapy question
-3. Click **Start Video Recording**
-4. Speak to the camera
-5. Press **Q** to stop
-6. View facial expression analysis
+2. Click **Start Video Recording**
+3. Speak to the camera
+4. Click **Stop Video Recording** to stop
+5. View facial expression analysis
 
 ---
 
@@ -143,12 +142,11 @@ Open the displayed URL (usually http://localhost:8501).
 ## 📂 File Structure
 
 ```
-therapy-app/
+therapy-app/src
 ├── app.py                       # Main application
 ├── facial_analyzer.py           # Video analysis module
 ├── depression_text_predictor.py # Text analysis module
-├── audio_depression_detector.py # Audio analysis module
-└── requirements.txt             # Dependencies
+└── audio_depression_detector.py # Audio analysis module
 ```
 
 ---
